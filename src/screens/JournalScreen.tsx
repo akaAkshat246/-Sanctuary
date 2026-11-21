@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Plus, Search, Trash2, ArrowLeft, Sparkles, Tag, Check, Calendar, Edit3 } from 'lucide-react';
 import type { JournalEntry, MoodType } from '../types';
 import { Storage } from '../lib/storage';
@@ -36,30 +36,48 @@ export const JournalScreen: React.FC<JournalScreenProps> = ({
   onClearInitialEdit,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [editingEntry, setEditingEntry] = useState<JournalEntry | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
+  
+  // Find initial entry if targeted
+  const initialEntry = useMemo(() => {
+    return initialEditingId ? entries.find(e => e.id === initialEditingId) || null : null;
+  }, [initialEditingId, entries]);
+
+  const [editingEntry, setEditingEntry] = useState<JournalEntry | null>(initialEntry);
+  const [isCreating, setIsCreating] = useState(Boolean(initialEntry));
 
   // Form states
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [mood, setMood] = useState<MoodType>('peaceful');
+  const [title, setTitle] = useState(() => initialEntry?.title || '');
+  const [content, setContent] = useState(() => initialEntry?.content || '');
+  const [mood, setMood] = useState<MoodType>(() => initialEntry?.mood || 'peaceful');
   const [tagInput, setTagInput] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
+  const [tags, setTags] = useState<string[]>(() => initialEntry?.tags || []);
   const [saveStatus, setSaveStatus] = useState<string>('');
   const [isInspiring, setIsInspiring] = useState(false);
 
   const autoSaveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Handle direct navigation to edit
-  useEffect(() => {
-    if (initialEditingId) {
-      const target = entries.find((e) => e.id === initialEditingId);
-      if (target) {
-        startEditing(target);
-      }
-      onClearInitialEdit?.();
-    }
-  }, [initialEditingId, entries, onClearInitialEdit]);
+  const startNewEntry = useCallback(() => {
+    const draft = Storage.getDraft();
+    setTitle(draft?.title || '');
+    setContent(draft?.content || '');
+    setMood('peaceful');
+    setTags([]);
+    setTagInput('');
+    setEditingEntry(null);
+    setIsCreating(true);
+    onClearInitialEdit?.();
+  }, [onClearInitialEdit]);
+
+  const startEditing = useCallback((entry: JournalEntry) => {
+    setTitle(entry.title);
+    setContent(entry.content);
+    setMood(entry.mood);
+    setTags(entry.tags || []);
+    setTagInput('');
+    setEditingEntry(entry);
+    setIsCreating(true);
+    onClearInitialEdit?.();
+  }, [onClearInitialEdit]);
 
   // Word count computation
   const wordCount = useMemo(() => {
@@ -86,27 +104,6 @@ export const JournalScreen: React.FC<JournalScreenProps> = ({
       if (autoSaveTimerRef.current) clearInterval(autoSaveTimerRef.current);
     };
   }, [title, content, isCreating, editingEntry]);
-
-  const startNewEntry = () => {
-    const draft = Storage.getDraft();
-    setTitle(draft?.title || '');
-    setContent(draft?.content || '');
-    setMood('peaceful');
-    setTags([]);
-    setTagInput('');
-    setEditingEntry(null);
-    setIsCreating(true);
-  };
-
-  const startEditing = (entry: JournalEntry) => {
-    setTitle(entry.title);
-    setContent(entry.content);
-    setMood(entry.mood);
-    setTags(entry.tags || []);
-    setTagInput('');
-    setEditingEntry(entry);
-    setIsCreating(true);
-  };
 
   const handleSave = () => {
     if (!content.trim() && !title.trim()) return;
@@ -158,7 +155,6 @@ export const JournalScreen: React.FC<JournalScreenProps> = ({
 
   const handleInspireMe = () => {
     setIsInspiring(true);
-    // Check if Gemini API key exists
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem('sanctuary_gemini_key');
     if (apiKey) {
       fetch(

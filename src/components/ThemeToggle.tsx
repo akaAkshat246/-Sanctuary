@@ -1,15 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Sun, Moon } from 'lucide-react';
 import { Storage } from '../lib/storage';
 
 export const ThemeToggle: React.FC<{ className?: string }> = ({ className = '' }) => {
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
-
-  useEffect(() => {
-    const current = Storage.getTheme();
-    setTheme(current);
-    document.documentElement.setAttribute('data-theme', current);
-  }, []);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => Storage.getTheme());
 
   const toggle = () => {
     const next = theme === 'light' ? 'dark' : 'light';
@@ -35,4 +29,3 @@ export const ThemeToggle: React.FC<{ className?: string }> = ({ className = '' }
     </button>
   );
 };
-

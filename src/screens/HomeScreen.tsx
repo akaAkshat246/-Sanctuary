@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import confetti from 'canvas-confetti';
 import { RefreshCw, Sparkles, BookOpen, Heart, Bell, Image as GalleryIcon } from 'lucide-react';
 import type { UserProfile, JournalEntry, MemoryItem, ReminderItem } from '../types';
@@ -17,6 +17,21 @@ interface HomeScreenProps {
   onNewJournal: () => void;
 }
 
+function computeTimeGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return 'Good Morning';
+  if (hour >= 12 && hour < 17) return 'Good Afternoon';
+  if (hour >= 17 && hour < 21) return 'Good Evening';
+  return 'Peaceful Night';
+}
+
+function computeInitialQuote(): number {
+  const dayOfYear = Math.floor(
+    (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 1000 / 60 / 60 / 24
+  );
+  return dayOfYear % LITERARY_QUOTES.length;
+}
+
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   profile,
   journals,
@@ -27,45 +42,42 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNewJournal,
 }) => {
   // Quote State
-  const [quoteIndex, setQuoteIndex] = useState(() => {
-    const dayOfYear = Math.floor(
-      (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 1000 / 60 / 60 / 24
-    );
-    return dayOfYear % LITERARY_QUOTES.length;
-  });
+  const [quoteIndex, setQuoteIndex] = useState(computeInitialQuote);
 
   // Cat State
   const [catIndex, setCatIndex] = useState(0);
 
-  // Rotate cat companion smoothly
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCatIndex((prev) => (prev + 1) % CAT_COMPANIONS.length);
-    }, 7000);
-    return () => clearInterval(timer);
-  }, []);
+  // Greeting State
+  const [greeting, setGreeting] = useState(computeTimeGreeting);
 
-  const currentCat = CAT_COMPANIONS[catIndex];
-
-  // Random nickname based on gender
+  // Nickname derived stably
   const nickname = useMemo(() => {
     const list = GENDER_NICKNAMES[profile.gender] || GENDER_NICKNAMES['They/Them'];
-    return list[Math.floor(Math.random() * list.length)];
+    return list[0];
   }, [profile.gender]);
 
-  // Time-based greeting
-  const greeting = useMemo(() => {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) return 'Good Morning';
-    if (hour >= 12 && hour < 17) return 'Good Afternoon';
-    if (hour >= 17 && hour < 21) return 'Good Evening';
-    return 'Peaceful Night';
-  }, []);
-
-  // Check Occasion / Birthday
+  // Occasion derived purely from props
   const occasion = useMemo(() => {
     return checkSpecialOccasion(profile.birthday);
   }, [profile.birthday]);
+
+  // Hourly greeting check & cat cycling
+  useEffect(() => {
+    const greetingTimer = setInterval(() => {
+      setGreeting(computeTimeGreeting());
+    }, 60000);
+
+    const catTimer = setInterval(() => {
+      setCatIndex((prev) => (prev + 1) % CAT_COMPANIONS.length);
+    }, 7000);
+
+    return () => {
+      clearInterval(greetingTimer);
+      clearInterval(catTimer);
+    };
+  }, []);
+
+  const currentCat = CAT_COMPANIONS[catIndex];
 
   // Birthday confetti trigger
   useEffect(() => {

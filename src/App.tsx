@@ -19,10 +19,10 @@ import { SettingsScreen } from './screens/SettingsScreen';
 
 export function App() {
   const [profile, setProfile] = useState<UserProfile>(() => Storage.getProfile());
-  const [journals, setJournals] = useState<JournalEntry[]>([]);
-  const [memories, setMemories] = useState<MemoryItem[]>([]);
-  const [reminders, setReminders] = useState<ReminderItem[]>([]);
-  const [links, setLinks] = useState<SavedLink[]>([]);
+  const [journals, setJournals] = useState<JournalEntry[]>(() => Storage.getJournals());
+  const [memories, setMemories] = useState<MemoryItem[]>(() => Storage.getMemories());
+  const [reminders, setReminders] = useState<ReminderItem[]>(() => Storage.getReminders());
+  const [links, setLinks] = useState<SavedLink[]>(() => Storage.getLinks());
 
   // Navigation state
   const [activeTab, setActiveTab] = useState<NavTab>('home');
@@ -32,20 +32,10 @@ export function App() {
   // Modals
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(() => !Storage.getProfile().hasCompletedOnboarding);
 
   // Reload all sanctuary data from native storage (SQLite + Preferences + Filesystem)
-  const loadData = useCallback(async () => {
-    // 1. Initial fast read
-    setProfile(Storage.getProfile());
-    setJournals(Storage.getJournals());
-    setMemories(Storage.getMemories());
-    setReminders(Storage.getReminders());
-    setLinks(Storage.getLinks());
-
-    // 2. Perform async native storage check & migration
-    await Storage.migrateFromLocalStorageIfNeeded();
-
+  const refreshData = useCallback(async () => {
     const [prof, jnls, mems, rems, lnks] = await Promise.all([
       Storage.getProfileAsync(),
       Storage.getJournalsAsync(),
@@ -59,17 +49,17 @@ export function App() {
     setMemories(mems);
     setReminders(rems);
     setLinks(lnks);
-
-    if (!prof.hasCompletedOnboarding) {
-      setIsOnboardingOpen(true);
-    }
   }, []);
 
   useEffect(() => {
     const savedTheme = Storage.getTheme();
     document.documentElement.setAttribute('data-theme', savedTheme);
-    loadData();
-  }, [loadData]);
+
+    // Initial background migration & sync
+    Storage.migrateFromLocalStorageIfNeeded().then(() => {
+      refreshData();
+    });
+  }, [refreshData]);
 
   const handleOpenJournal = (id: string) => {
     setSubView(null);
@@ -107,13 +97,13 @@ export function App() {
         ) : subView === 'links' ? (
           <LinksScreen
             links={links}
-            onRefresh={loadData}
+            onRefresh={refreshData}
             onBack={() => setSubView(null)}
           />
         ) : subView === 'settings' ? (
           <SettingsScreen
             profile={profile}
-            onRefresh={loadData}
+            onRefresh={refreshData}
             onBack={() => setSubView(null)}
           />
         ) : activeTab === 'home' ? (
@@ -130,16 +120,16 @@ export function App() {
             onNewJournal={handleStartNewJournal}
           />
         ) : activeTab === 'vault' ? (
-          <VaultScreen memories={memories} onRefresh={loadData} />
+          <VaultScreen memories={memories} onRefresh={refreshData} />
         ) : activeTab === 'journal' ? (
           <JournalScreen
             entries={journals}
-            onRefresh={loadData}
+            onRefresh={refreshData}
             initialEditingId={editingJournalId}
             onClearInitialEdit={() => setEditingJournalId(null)}
           />
         ) : (
-          <RemindersScreen reminders={reminders} onRefresh={loadData} />
+          <RemindersScreen reminders={reminders} onRefresh={refreshData} />
         )}
       </main>
 

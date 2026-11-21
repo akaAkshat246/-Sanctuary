@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Check, Trash2, Calendar, AlertCircle, Clock, X } from 'lucide-react';
 import type { ReminderItem, PriorityLevel } from '../types';
 import { Storage } from '../lib/storage';
@@ -21,10 +21,19 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({
   const [dueDate, setDueDate] = useState('');
   const [priority, setPriority] = useState<PriorityLevel>('medium');
 
+  // Track reference timestamp for overdue checks
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
+
   const openAddModal = () => {
     setTitle('');
     setDescription('');
-    // Default to tomorrow 10:00 AM
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(10, 0, 0, 0);
@@ -74,10 +83,20 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({
     onRefresh();
   };
 
-  // Check if a reminder is overdue
+  // Sorted list: Overdue first, then pending by date, then completed at bottom
+  const sortedReminders = useMemo(() => {
+    return [...reminders].sort((a, b) => {
+      if (a.completed !== b.completed) return a.completed ? 1 : -1;
+      const aOverdue = !a.completed && Boolean(a.dueDate) && new Date(a.dueDate).getTime() < currentTime;
+      const bOverdue = !b.completed && Boolean(b.dueDate) && new Date(b.dueDate).getTime() < currentTime;
+      if (aOverdue && !bOverdue) return -1;
+      if (!aOverdue && bOverdue) return 1;
+      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+    });
+  }, [reminders, currentTime]);
+
   const isOverdue = (r: ReminderItem) => {
-    if (r.completed || !r.dueDate) return false;
-    return new Date(r.dueDate).getTime() < Date.now();
+    return !r.completed && Boolean(r.dueDate) && new Date(r.dueDate).getTime() < currentTime;
   };
 
   // Stats calculation
@@ -85,18 +104,6 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({
   const pending = reminders.filter((r) => !r.completed).length;
   const done = reminders.filter((r) => r.completed).length;
   const overdueCount = reminders.filter(isOverdue).length;
-
-  // Sorted list: Overdue first, then pending by date, then completed at bottom
-  const sortedReminders = useMemo(() => {
-    return [...reminders].sort((a, b) => {
-      if (a.completed !== b.completed) return a.completed ? 1 : -1;
-      const aOverdue = isOverdue(a);
-      const bOverdue = isOverdue(b);
-      if (aOverdue && !bOverdue) return -1;
-      if (!aOverdue && bOverdue) return 1;
-      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-    });
-  }, [reminders]);
 
   const getPriorityColor = (p: PriorityLevel) => {
     switch (p) {

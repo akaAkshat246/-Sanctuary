@@ -33,3 +33,4 @@ export const Clock: React.FC = React.memo(() => {
 });
 
 Clock.displayName = 'SanctuaryClock';
+

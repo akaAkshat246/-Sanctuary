@@ -164,3 +164,4 @@ export const LITERARY_QUOTES: Quote[] = [
     author: "Sanctuary Wisdom"
   }
 ];
+

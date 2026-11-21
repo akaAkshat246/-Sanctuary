@@ -122,3 +122,4 @@ export const GENDER_NICKNAMES = {
   'He/Him': ['champ', 'captain', 'brother', 'star', 'warrior', 'traveler'],
   'They/Them': ['friend', 'star', 'gentle traveler', 'radiant soul', 'beloved one']
 };
+

@@ -64,3 +64,4 @@ export interface MoodLog {
   note?: string;
   createdAt: string;
 }
+

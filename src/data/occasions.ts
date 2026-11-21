@@ -55,3 +55,4 @@ export function checkSpecialOccasion(birthday?: string): OccasionInfo | null {
   const occasion = OCCASIONS.find(o => o.date === todayKey);
   return occasion || null;
 }
+

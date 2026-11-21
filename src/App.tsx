@@ -34,14 +34,31 @@ export function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
-  // Reload all sanctuary data
-  const loadData = useCallback(() => {
-    const prof = Storage.getProfile();
-    setProfile(prof);
+  // Reload all sanctuary data from native storage (SQLite + Preferences + Filesystem)
+  const loadData = useCallback(async () => {
+    // 1. Initial fast read
+    setProfile(Storage.getProfile());
     setJournals(Storage.getJournals());
     setMemories(Storage.getMemories());
     setReminders(Storage.getReminders());
     setLinks(Storage.getLinks());
+
+    // 2. Perform async native storage check & migration
+    await Storage.migrateFromLocalStorageIfNeeded();
+
+    const [prof, jnls, mems, rems, lnks] = await Promise.all([
+      Storage.getProfileAsync(),
+      Storage.getJournalsAsync(),
+      Storage.getMemoriesAsync(),
+      Storage.getRemindersAsync(),
+      Storage.getLinksAsync(),
+    ]);
+
+    setProfile(prof);
+    setJournals(jnls);
+    setMemories(mems);
+    setReminders(rems);
+    setLinks(lnks);
 
     if (!prof.hasCompletedOnboarding) {
       setIsOnboardingOpen(true);
@@ -49,13 +66,11 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    // Initial theme setup
     const savedTheme = Storage.getTheme();
     document.documentElement.setAttribute('data-theme', savedTheme);
     loadData();
   }, [loadData]);
 
-  // Handle navigating from subview or home to journal edit
   const handleOpenJournal = (id: string) => {
     setSubView(null);
     setEditingJournalId(id);
@@ -156,13 +171,17 @@ export function App() {
       <ProfileSheet
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
-        onProfileUpdated={(updated) => setProfile(updated)}
+        onProfileUpdated={(updated) => {
+          Storage.setProfile(updated);
+          setProfile(updated);
+        }}
       />
 
       {/* Onboarding Modal for First Launch */}
       <OnboardingModal
         isOpen={isOnboardingOpen}
         onComplete={(newProfile) => {
+          Storage.setProfile(newProfile);
           setProfile(newProfile);
           setIsOnboardingOpen(false);
         }}

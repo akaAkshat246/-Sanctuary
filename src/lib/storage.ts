@@ -1,3 +1,6 @@
+import { Preferences } from '@capacitor/preferences';
+import { Database } from './database';
+import { NativeFiles } from './filesystem';
 import type { UserProfile, JournalEntry, MemoryItem, ReminderItem, SavedLink, MoodLog } from '../types';
 
 const STORAGE_KEYS = {
@@ -9,7 +12,7 @@ const STORAGE_KEYS = {
   LINKS: 'sanctuary_links',
   MOODS: 'sanctuary_moods',
   DRAFT: 'sanctuary_draft',
-  OCCASIONS_SHOWN: 'sanctuary_occasions_shown',
+  MIGRATED: 'sanctuary_migrated_sqlite_v1',
 };
 
 const DEFAULT_PROFILE: UserProfile = {
@@ -23,8 +26,7 @@ const DEFAULT_PROFILE: UserProfile = {
   createdAt: new Date().toISOString(),
 };
 
-// Safe JSON parse helper
-function safeGet<T>(key: string, defaultValue: T): T {
+function safeGetLocal<T>(key: string, defaultValue: T): T {
   try {
     const item = localStorage.getItem(key);
     return item ? JSON.parse(item) : defaultValue;
@@ -34,7 +36,7 @@ function safeGet<T>(key: string, defaultValue: T): T {
   }
 }
 
-function safeSet<T>(key: string, value: T): void {
+function safeSetLocal<T>(key: string, value: T): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (error) {
@@ -43,34 +45,110 @@ function safeSet<T>(key: string, value: T): void {
 }
 
 export const Storage = {
-  // Profile
-  getProfile: (): UserProfile => {
-    return safeGet<UserProfile>(STORAGE_KEYS.PROFILE, DEFAULT_PROFILE);
+  // App Startup Migration Check (Day 11 & Day 14)
+  async migrateFromLocalStorageIfNeeded(): Promise<void> {
+    const alreadyMigrated = localStorage.getItem(STORAGE_KEYS.MIGRATED);
+    if (alreadyMigrated) return;
+
+    try {
+      // Migrate Profile to Preferences
+      const localProfile = localStorage.getItem(STORAGE_KEYS.PROFILE);
+      if (localProfile) {
+        await Preferences.set({ key: STORAGE_KEYS.PROFILE, value: localProfile });
+      }
+
+      // Migrate Journals to SQLite
+      const localJournals = safeGetLocal<JournalEntry[]>(STORAGE_KEYS.JOURNALS, []);
+      for (const j of localJournals) {
+        await Database.saveJournal(j);
+      }
+
+      // Migrate Reminders to SQLite
+      const localReminders = safeGetLocal<ReminderItem[]>(STORAGE_KEYS.REMINDERS, []);
+      for (const r of localReminders) {
+        await Database.saveReminder(r);
+      }
+
+      // Migrate Memories to SQLite
+      const localMemories = safeGetLocal<MemoryItem[]>(STORAGE_KEYS.MEMORIES, []);
+      for (const m of localMemories) {
+        await Database.saveMemory(m);
+      }
+
+      // Migrate Links to SQLite
+      const localLinks = safeGetLocal<SavedLink[]>(STORAGE_KEYS.LINKS, []);
+      for (const l of localLinks) {
+        await Database.saveLink(l);
+      }
+
+      localStorage.setItem(STORAGE_KEYS.MIGRATED, 'true');
+      console.log('Sanctuary: Local data migration to native storage layer succeeded.');
+    } catch (e) {
+      console.warn('Migration to native storage skipped or errored:', e);
+    }
   },
-  setProfile: (profile: UserProfile): void => {
-    safeSet(STORAGE_KEYS.PROFILE, profile);
+
+  // Profile (Preferences + Cache)
+  getProfile(): UserProfile {
+    return safeGetLocal<UserProfile>(STORAGE_KEYS.PROFILE, DEFAULT_PROFILE);
+  },
+  async getProfileAsync(): Promise<UserProfile> {
+    try {
+      const { value } = await Preferences.get({ key: STORAGE_KEYS.PROFILE });
+      if (value) {
+        const parsed = JSON.parse(value);
+        safeSetLocal(STORAGE_KEYS.PROFILE, parsed);
+        return parsed;
+      }
+    } catch {
+      // fallback to local
+    }
+    return Storage.getProfile();
+  },
+  async setProfile(profile: UserProfile): Promise<void> {
+    safeSetLocal(STORAGE_KEYS.PROFILE, profile);
+    try {
+      await Preferences.set({
+        key: STORAGE_KEYS.PROFILE,
+        value: JSON.stringify(profile)
+      });
+    } catch (e) {
+      console.warn('Preferences setProfile error:', e);
+    }
   },
 
   // Theme
-  getTheme: (): 'light' | 'dark' => {
+  getTheme(): 'light' | 'dark' {
     const saved = localStorage.getItem(STORAGE_KEYS.THEME) as 'light' | 'dark' | null;
     if (saved === 'light' || saved === 'dark') return saved;
-    // Check system preference
     if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
       return 'dark';
     }
     return 'light';
   },
-  setTheme: (theme: 'light' | 'dark'): void => {
+  async setTheme(theme: 'light' | 'dark'): Promise<void> {
     localStorage.setItem(STORAGE_KEYS.THEME, theme);
     document.documentElement.setAttribute('data-theme', theme);
+    try {
+      await Preferences.set({ key: STORAGE_KEYS.THEME, value: theme });
+    } catch {
+      // ignore
+    }
   },
 
-  // Journals
-  getJournals: (): JournalEntry[] => {
-    return safeGet<JournalEntry[]>(STORAGE_KEYS.JOURNALS, []);
+  // Journals (SQLite with fallback)
+  async getJournalsAsync(): Promise<JournalEntry[]> {
+    const fromDb = await Database.getJournals();
+    if (fromDb !== null) {
+      safeSetLocal(STORAGE_KEYS.JOURNALS, fromDb);
+      return fromDb;
+    }
+    return safeGetLocal<JournalEntry[]>(STORAGE_KEYS.JOURNALS, []);
   },
-  saveJournal: (entry: JournalEntry): void => {
+  getJournals(): JournalEntry[] {
+    return safeGetLocal<JournalEntry[]>(STORAGE_KEYS.JOURNALS, []);
+  },
+  async saveJournal(entry: JournalEntry): Promise<void> {
     const list = Storage.getJournals();
     const index = list.findIndex(j => j.id === entry.id);
     if (index >= 0) {
@@ -78,51 +156,93 @@ export const Storage = {
     } else {
       list.unshift(entry);
     }
-    safeSet(STORAGE_KEYS.JOURNALS, list);
+    safeSetLocal(STORAGE_KEYS.JOURNALS, list);
+    await Database.saveJournal(entry);
   },
-  deleteJournal: (id: string): void => {
+  async deleteJournal(id: string): Promise<void> {
     const list = Storage.getJournals().filter(j => j.id !== id);
-    safeSet(STORAGE_KEYS.JOURNALS, list);
+    safeSetLocal(STORAGE_KEYS.JOURNALS, list);
+    await Database.deleteJournal(id);
   },
 
   // Draft
-  getDraft: (): { title: string; content: string } | null => {
-    return safeGet(STORAGE_KEYS.DRAFT, null);
+  getDraft(): { title: string; content: string } | null {
+    return safeGetLocal(STORAGE_KEYS.DRAFT, null);
   },
-  saveDraft: (draft: { title: string; content: string }): void => {
-    safeSet(STORAGE_KEYS.DRAFT, draft);
+  saveDraft(draft: { title: string; content: string }): void {
+    safeSetLocal(STORAGE_KEYS.DRAFT, draft);
   },
-  clearDraft: (): void => {
+  clearDraft(): void {
     localStorage.removeItem(STORAGE_KEYS.DRAFT);
   },
 
-  // Memories
-  getMemories: (): MemoryItem[] => {
-    return safeGet<MemoryItem[]>(STORAGE_KEYS.MEMORIES, []);
+  // Memories (Filesystem + SQLite with fallback)
+  async getMemoriesAsync(): Promise<MemoryItem[]> {
+    const fromDb = await Database.getMemories();
+    if (fromDb !== null) {
+      // Convert URIs for display
+      const processed = fromDb.map(m => ({
+        ...m,
+        fileUrl: NativeFiles.getDisplayUrl(m.fileUrl)
+      }));
+      safeSetLocal(STORAGE_KEYS.MEMORIES, processed);
+      return processed;
+    }
+    return safeGetLocal<MemoryItem[]>(STORAGE_KEYS.MEMORIES, []);
   },
-  saveMemory: (item: MemoryItem): void => {
+  getMemories(): MemoryItem[] {
+    return safeGetLocal<MemoryItem[]>(STORAGE_KEYS.MEMORIES, []);
+  },
+  async saveMemory(item: MemoryItem): Promise<void> {
+    // 1. Save file data to phone filesystem (or keep dataUrl in web)
+    const nativeUri = await NativeFiles.saveFile(item.fileName, item.fileUrl);
+    const updatedItem: MemoryItem = {
+      ...item,
+      fileUrl: nativeUri
+    };
+
+    // 2. Save reference to SQLite
+    await Database.saveMemory(updatedItem, nativeUri);
+
+    // 3. Cache locally for immediate UI display
     const list = Storage.getMemories();
-    list.unshift(item);
-    safeSet(STORAGE_KEYS.MEMORIES, list);
+    list.unshift({
+      ...updatedItem,
+      fileUrl: NativeFiles.getDisplayUrl(nativeUri)
+    });
+    safeSetLocal(STORAGE_KEYS.MEMORIES, list);
   },
-  deleteMemory: (id: string): void => {
+  async deleteMemory(id: string, fileUri?: string): Promise<void> {
+    if (fileUri) {
+      await NativeFiles.deleteFile(fileUri);
+    }
+    await Database.deleteMemory(id);
     const list = Storage.getMemories().filter(m => m.id !== id);
-    safeSet(STORAGE_KEYS.MEMORIES, list);
+    safeSetLocal(STORAGE_KEYS.MEMORIES, list);
   },
-  toggleMemoryFavourite: (id: string): void => {
+  async toggleMemoryFavourite(id: string): Promise<void> {
     const list = Storage.getMemories();
     const item = list.find(m => m.id === id);
     if (item) {
       item.isFavourite = !item.isFavourite;
-      safeSet(STORAGE_KEYS.MEMORIES, list);
+      await Database.toggleMemoryFavourite(id, item.isFavourite);
+      safeSetLocal(STORAGE_KEYS.MEMORIES, list);
     }
   },
 
-  // Reminders
-  getReminders: (): ReminderItem[] => {
-    return safeGet<ReminderItem[]>(STORAGE_KEYS.REMINDERS, []);
+  // Reminders (SQLite with fallback)
+  async getRemindersAsync(): Promise<ReminderItem[]> {
+    const fromDb = await Database.getReminders();
+    if (fromDb !== null) {
+      safeSetLocal(STORAGE_KEYS.REMINDERS, fromDb);
+      return fromDb;
+    }
+    return safeGetLocal<ReminderItem[]>(STORAGE_KEYS.REMINDERS, []);
   },
-  saveReminder: (reminder: ReminderItem): void => {
+  getReminders(): ReminderItem[] {
+    return safeGetLocal<ReminderItem[]>(STORAGE_KEYS.REMINDERS, []);
+  },
+  async saveReminder(reminder: ReminderItem): Promise<void> {
     const list = Storage.getReminders();
     const index = list.findIndex(r => r.id === reminder.id);
     if (index >= 0) {
@@ -130,52 +250,76 @@ export const Storage = {
     } else {
       list.unshift(reminder);
     }
-    safeSet(STORAGE_KEYS.REMINDERS, list);
+    safeSetLocal(STORAGE_KEYS.REMINDERS, list);
+    await Database.saveReminder(reminder);
   },
-  deleteReminder: (id: string): void => {
+  async deleteReminder(id: string): Promise<void> {
     const list = Storage.getReminders().filter(r => r.id !== id);
-    safeSet(STORAGE_KEYS.REMINDERS, list);
+    safeSetLocal(STORAGE_KEYS.REMINDERS, list);
+    await Database.deleteReminder(id);
   },
-  toggleReminderComplete: (id: string): void => {
+  async toggleReminderComplete(id: string): Promise<void> {
     const list = Storage.getReminders();
     const item = list.find(r => r.id === id);
     if (item) {
       item.completed = !item.completed;
-      safeSet(STORAGE_KEYS.REMINDERS, list);
+      await Database.toggleReminderComplete(id, item.completed);
+      safeSetLocal(STORAGE_KEYS.REMINDERS, list);
     }
   },
 
   // Moods
-  getMoods: (): MoodLog[] => {
-    return safeGet<MoodLog[]>(STORAGE_KEYS.MOODS, []);
+  async getMoodsAsync(): Promise<MoodLog[]> {
+    const fromDb = await Database.getMoods();
+    if (fromDb !== null) {
+      safeSetLocal(STORAGE_KEYS.MOODS, fromDb);
+      return fromDb;
+    }
+    return safeGetLocal<MoodLog[]>(STORAGE_KEYS.MOODS, []);
   },
-  saveMood: (log: MoodLog): void => {
-    const list = Storage.getMoods();
+  async saveMood(log: MoodLog): Promise<void> {
+    const list = safeGetLocal<MoodLog[]>(STORAGE_KEYS.MOODS, []);
     const existingIndex = list.findIndex(m => m.date === log.date);
     if (existingIndex >= 0) {
       list[existingIndex] = log;
     } else {
       list.unshift(log);
     }
-    safeSet(STORAGE_KEYS.MOODS, list);
+    safeSetLocal(STORAGE_KEYS.MOODS, list);
+    await Database.saveMood(log);
   },
 
   // Links
-  getLinks: (): SavedLink[] => {
-    return safeGet<SavedLink[]>(STORAGE_KEYS.LINKS, []);
+  async getLinksAsync(): Promise<SavedLink[]> {
+    const fromDb = await Database.getLinks();
+    if (fromDb !== null) {
+      safeSetLocal(STORAGE_KEYS.LINKS, fromDb);
+      return fromDb;
+    }
+    return safeGetLocal<SavedLink[]>(STORAGE_KEYS.LINKS, []);
   },
-  saveLink: (link: SavedLink): void => {
+  getLinks(): SavedLink[] {
+    return safeGetLocal<SavedLink[]>(STORAGE_KEYS.LINKS, []);
+  },
+  async saveLink(link: SavedLink): Promise<void> {
     const list = Storage.getLinks();
     list.unshift(link);
-    safeSet(STORAGE_KEYS.LINKS, list);
+    safeSetLocal(STORAGE_KEYS.LINKS, list);
+    await Database.saveLink(link);
   },
-  deleteLink: (id: string): void => {
+  async deleteLink(id: string): Promise<void> {
     const list = Storage.getLinks().filter(l => l.id !== id);
-    safeSet(STORAGE_KEYS.LINKS, list);
+    safeSetLocal(STORAGE_KEYS.LINKS, list);
+    await Database.deleteLink(id);
   },
 
-  // Clear all sanctuary data
-  clearAllSanctuaryData: (): void => {
+  // Wipe all sanctuary data safely
+  async clearAllSanctuaryData(): Promise<void> {
+    try {
+      await Preferences.clear();
+    } catch {
+      // ignore
+    }
     Object.keys(localStorage).forEach(key => {
       if (key.startsWith('sanctuary_')) {
         localStorage.removeItem(key);
@@ -184,11 +328,17 @@ export const Storage = {
   },
 
   // Export full backup
-  exportBackup: (): string => {
+  exportBackup(): string {
     const data: Record<string, unknown> = {};
     Object.entries(STORAGE_KEYS).forEach(([, key]) => {
       const val = localStorage.getItem(key);
-      if (val) data[key] = JSON.parse(val);
+      if (val) {
+        try {
+          data[key] = JSON.parse(val);
+        } catch {
+          data[key] = val;
+        }
+      }
     });
     return JSON.stringify(data, null, 2);
   }

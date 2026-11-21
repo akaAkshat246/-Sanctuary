@@ -6,6 +6,7 @@ import type { NavTab } from './components/BottomNav';
 import { MoreDrawer } from './components/MoreDrawer';
 import { ProfileSheet } from './components/ProfileSheet';
 import { OnboardingModal } from './components/OnboardingModal';
+import { InstallPrompt } from './components/InstallPrompt';
 
 // Screens
 import { HomeScreen } from './screens/HomeScreen';
@@ -132,6 +133,9 @@ export function App() {
           <RemindersScreen reminders={reminders} onRefresh={refreshData} />
         )}
       </main>
+
+      {/* PWA Install Banner */}
+      <InstallPrompt />
 
       {/* Floating Bottom Nav */}
       <BottomNav

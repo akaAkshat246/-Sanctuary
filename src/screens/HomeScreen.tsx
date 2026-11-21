@@ -3,6 +3,7 @@ import confetti from 'canvas-confetti';
 import { RefreshCw, Sparkles, BookOpen, Heart, Bell, Image as GalleryIcon } from 'lucide-react';
 import type { UserProfile, JournalEntry, MemoryItem, ReminderItem } from '../types';
 import { Clock } from '../components/Clock';
+import { MochiCat } from '../components/MochiCat';
 import { LITERARY_QUOTES } from '../data/quotes';
 import { CAT_COMPANIONS, GENDER_NICKNAMES } from '../data/cats';
 import { checkSpecialOccasion } from '../data/occasions';
@@ -190,34 +191,40 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
       </div>
 
-      {/* Kawaii Cat Companion Card */}
-      <div
-        onClick={() => setCatIndex((prev) => (prev + 1) % CAT_COMPANIONS.length)}
-        className="cursor-pointer p-5 rounded-3xl bg-gradient-to-br from-teal-950/5 via-[var(--color-surface)] to-teal-900/10 border border-teal-800/20 shadow-sm relative transition-all duration-300 hover:shadow-md"
-      >
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="px-3 py-1.5 rounded-full bg-teal-500/15 border border-teal-500/30 text-sm font-mono font-medium text-[var(--color-primary)]">
-              {currentCat.avatar}
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-[var(--color-on-surface)] flex items-center gap-1.5">
+      {/* Kawaii Cat Companion Card with Animated SVG Mochi */}
+      <div className="p-5 rounded-3xl bg-gradient-to-br from-teal-950/5 via-[var(--color-surface)] to-teal-900/10 border border-teal-800/20 shadow-sm relative transition-all duration-300 hover:shadow-md">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex-1 space-y-2 text-center sm:text-left">
+            <div className="flex items-center justify-center sm:justify-start gap-2">
+              <span className="text-xs font-semibold text-[var(--color-on-surface)]">
                 {currentCat.name}
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-teal-500/10 text-teal-600 font-normal">
-                  {currentCat.mood}
-                </span>
-              </div>
-              <div className="text-[11px] text-[var(--color-on-surface-variant)]">
-                Companion
-              </div>
+              </span>
+              <span className="text-[9px] px-2 py-0.5 rounded-full bg-teal-500/15 text-teal-600 font-medium">
+                {currentCat.mood}
+              </span>
             </div>
-          </div>
-          <Sparkles className="w-4 h-4 text-[var(--color-gold)] animate-pulse" />
-        </div>
 
-        <p className="mt-3.5 text-xs italic text-[var(--color-on-surface)] font-quote leading-relaxed text-base tracking-wide pl-2 border-l-2 border-teal-500/40">
-          "{currentCat.phrases[quoteIndex % currentCat.phrases.length]}"
-        </p>
+            <p className="text-xs italic text-[var(--color-on-surface)] font-quote leading-relaxed text-base tracking-wide sm:pl-2 sm:border-l-2 border-teal-500/40">
+              "{currentCat.phrases[quoteIndex % currentCat.phrases.length]}"
+            </p>
+
+            <button
+              onClick={() => setCatIndex((prev) => (prev + 1) % CAT_COMPANIONS.length)}
+              className="text-[10px] text-[var(--color-gold)] hover:underline inline-flex items-center gap-1 font-medium pt-1"
+            >
+              <Sparkles className="w-3 h-3" /> Meet another companion
+            </button>
+          </div>
+
+          <div className="shrink-0">
+            <MochiCat
+              moodName={currentCat.name}
+              onPet={() => {
+                setCatIndex((prev) => (prev + 1) % CAT_COMPANIONS.length);
+              }}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Literary Quotes Card (Kafka / Dostoevsky) */}

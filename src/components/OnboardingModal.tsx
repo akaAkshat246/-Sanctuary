@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { Sparkles, Heart, ShieldCheck, ChevronRight, Check } from 'lucide-react';
+import {
+  Sparkles, Heart, ShieldCheck, ChevronRight, Check, Compass, HardDrive, BookOpen
+} from 'lucide-react';
 import type { UserProfile, Gender } from '../types';
 import { Storage } from '../lib/storage';
 
@@ -22,17 +24,27 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   const slides = [
     {
       title: "Welcome to Sanctuary",
-      desc: "A distraction-free, quiet digital refuge to store your memories, sacred thoughts, and daily reflections.",
+      desc: "A distraction-free, quiet digital refuge designed by Akshat Vats to protect your memories, thoughts, and reflections.",
       icon: <Sparkles className="w-12 h-12 text-[var(--color-gold)]" />,
     },
     {
-      title: "100% Offline & Private",
-      desc: "No accounts, no advertisements, no tracking beacons. Everything remains safely on your device.",
-      icon: <ShieldCheck className="w-12 h-12 text-teal-500" />,
+      title: "100% Local-First Privacy",
+      desc: "No accounts, no remote trackers, no advertising beacons. Your sanctuary belongs strictly to this device.",
+      icon: <ShieldCheck className="w-12 h-12 text-teal-600" />,
     },
     {
-      title: "Personal Companions & Literature",
-      desc: "Purring kawaii companions, Franz Kafka quotes, and gentle reminders for your everyday peace of mind.",
+      title: "10–15 GB Memory Vault",
+      desc: "Store uncompressed photos, video memories, audio notes, and documents in your permanent native vault.",
+      icon: <HardDrive className="w-12 h-12 text-amber-500" />,
+    },
+    {
+      title: "Writing Space & Kafka Wisdom",
+      desc: "Daily inner weather moods, auto-saving drafts, Gemini poetic inspiration, and curated Franz Kafka reflections.",
+      icon: <BookOpen className="w-12 h-12 text-indigo-500" />,
+    },
+    {
+      title: "Kawaii Companions & Calm",
+      desc: "Meet Mochi and rotating kawaii cat companions who keep gentle watch over your day with soft purrs.",
       icon: <Heart className="w-12 h-12 text-rose-500" />,
     },
   ];
@@ -56,13 +68,16 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-in fade-in">
       <div className="w-full max-w-md bg-[var(--color-surface)] border border-[var(--color-surface-border)] rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
-        {slide < 3 ? (
-          <div className="text-center space-y-4 py-4">
-            <div className="w-20 h-20 mx-auto rounded-3xl bg-teal-500/10 flex items-center justify-center">
+        {slide < slides.length ? (
+          <div className="text-center space-y-4 py-2">
+            <div className="w-20 h-20 mx-auto rounded-3xl bg-teal-500/10 flex items-center justify-center shadow-inner">
               {slides[slide].icon}
             </div>
 
             <div className="space-y-2">
+              <span className="text-[10px] uppercase tracking-widest text-[var(--color-gold)] font-bold">
+                Chapter {slide + 1} of {slides.length}
+              </span>
               <h3 className="text-2xl font-heading font-semibold text-[var(--color-on-surface)]">
                 {slides[slide].title}
               </h3>
@@ -72,27 +87,44 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             </div>
 
             <div className="flex justify-center gap-1.5 pt-2">
-              {[0, 1, 2].map((i) => (
-                <div
+              {slides.map((_, i) => (
+                <button
                   key={i}
+                  onClick={() => setSlide(i)}
                   className={`h-1.5 rounded-full transition-all duration-300 ${
                     slide === i ? 'w-6 bg-[var(--color-gold)]' : 'w-2 bg-[var(--color-surface-border)]'
                   }`}
+                  aria-label={`Slide ${i + 1}`}
                 />
               ))}
             </div>
 
-            <button
-              onClick={() => setSlide((prev) => prev + 1)}
-              className="w-full py-3 rounded-2xl bg-[var(--color-primary)] hover:bg-[var(--color-primary-light)] text-white text-xs font-semibold shadow-md flex items-center justify-center gap-2 transition-all active:scale-98"
-            >
-              Continue <ChevronRight className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2 pt-2">
+              {slide > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSlide((prev) => prev - 1)}
+                  className="px-4 py-3 rounded-2xl bg-[var(--color-surface-variant)] text-[var(--color-on-surface)] text-xs font-semibold hover:bg-[var(--color-surface-border)] transition-all"
+                >
+                  Back
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setSlide((prev) => prev + 1)}
+                className="flex-1 py-3 rounded-2xl bg-[var(--color-primary)] hover:bg-[var(--color-primary-light)] text-white text-xs font-semibold shadow-md flex items-center justify-center gap-2 transition-all active:scale-98"
+              >
+                {slide === slides.length - 1 ? 'Personalize Identity' : 'Continue'} <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         ) : (
           /* Profile Setup Slide */
           <form onSubmit={handleFinish} className="space-y-4">
             <div className="text-center space-y-1">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-500/10 text-[var(--color-gold)] flex items-center justify-center mb-2">
+                <Compass className="w-6 h-6" />
+              </div>
               <h3 className="text-xl font-heading font-semibold text-[var(--color-on-surface)]">
                 Personalize Your Refuge
               </h3>
@@ -127,7 +159,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                     onClick={() => setGender(g)}
                     className={`flex-1 py-2 px-2 rounded-xl text-xs font-medium transition-all ${
                       gender === g
-                        ? 'bg-[var(--color-primary)] text-white'
+                        ? 'bg-[var(--color-primary)] text-white shadow-xs'
                         : 'bg-[var(--color-surface-variant)] text-[var(--color-on-surface-variant)]'
                     }`}
                   >

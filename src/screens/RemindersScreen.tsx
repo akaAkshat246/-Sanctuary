@@ -189,7 +189,10 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({ reminders, onR
               <button
                 key={idx}
                 type="button"
-                onClick={() => setSelectedDay((prev) => (prev === cell.dateString ? null : cell.dateString))}
+                onClick={() => {
+                  hapticSelection();
+                  setSelectedDay((prev) => (prev === cell.dateString ? null : cell.dateString));
+                }}
                 className={`h-10 flex flex-col items-center justify-center rounded-xl transition ${
                   isSelected
                     ? 'bg-[#082a20] text-white font-bold'
@@ -214,9 +217,29 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({ reminders, onR
 
       {/* Reminders List or Bell Icon matching Frame 138s */}
       {displayedReminders.length === 0 ? (
-        <div className="flex flex-col items-center justify-center text-center py-12 text-[#8fa7a0] opacity-40">
-          <Bell className="w-8 h-8 stroke-[1.5]" />
-        </div>
+        selectedDay ? (
+          <div className="flex flex-col items-center justify-center text-center py-10 space-y-2 animate-in fade-in">
+            <Bell className="w-7 h-7 text-[#8fa7a0] stroke-[1.5] opacity-50" />
+            <p className="text-xs text-[#5b7970] dark:text-[#8fa7a0]">
+              No reminders scheduled for {selectedDay}.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setReminderDate(selectedDay);
+                setReminderTitle('');
+                setIsModalOpen(true);
+              }}
+              className="text-xs font-semibold text-[#082a20] dark:text-teal-400 hover:underline pt-1"
+            >
+              + Schedule for this day
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center text-center py-12 text-[#8fa7a0] opacity-40">
+            <Bell className="w-8 h-8 stroke-[1.5]" />
+          </div>
+        )
       ) : (
         <div className="space-y-3">
           {displayedReminders.map((r) => {

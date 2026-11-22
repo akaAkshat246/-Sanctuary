@@ -39,17 +39,13 @@ export const SyncScreen: React.FC<SyncScreenProps> = ({ onRefresh }) => {
     reader.onload = async (event) => {
       try {
         const text = event.target?.result as string;
-        const parsed = JSON.parse(text);
-
-        // Store each recognized key back into localStorage
-        Object.entries(parsed).forEach(([k, v]) => {
-          if (k.startsWith('sanctuary_')) {
-            localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v));
-          }
-        });
-
-        setImportStatus('Backup restored successfully!');
-        onRefresh();
+        const success = await Storage.importBackup(text);
+        if (success) {
+          setImportStatus('Backup restored successfully!');
+          onRefresh();
+        } else {
+          setImportStatus('Failed to restore backup.');
+        }
         setTimeout(() => setImportStatus(''), 4000);
       } catch (err) {
         console.error('Import error:', err);

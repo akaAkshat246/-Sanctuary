@@ -10,11 +10,13 @@ import {
   AlertCircleIcon as AlertCircle,
 } from '../components/icons';
 import { Storage } from '../lib/storage';
+import { hapticMedium, hapticSuccess } from '../lib/haptics';
 
 export const PrivacyScreen: React.FC = () => {
   const [isConfirmingClear, setIsConfirmingClear] = useState(false);
 
   const handleExportBackup = () => {
+    hapticMedium();
     const backupJson = Storage.exportBackup();
     const now = new Date().toISOString().split('T')[0];
     const filename = `sanctuary-backup-${now}.json`;
@@ -28,9 +30,11 @@ export const PrivacyScreen: React.FC = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    hapticSuccess();
   };
 
   const handleClearAll = async () => {
+    hapticMedium();
     await Storage.clearAllSanctuaryData();
     window.location.reload();
   };

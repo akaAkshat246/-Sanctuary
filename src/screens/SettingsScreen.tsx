@@ -11,6 +11,7 @@ import {
 } from '../components/icons';
 import type { UserProfile } from '../types';
 import { Storage } from '../lib/storage';
+import { hapticLight, hapticMedium, hapticSuccess } from '../lib/haptics';
 
 interface SettingsScreenProps {
   profile: UserProfile;
@@ -31,12 +32,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ profile, onRefre
   }, [fontSize]);
 
   const handleToggleTheme = async (newTheme: 'light' | 'dark') => {
+    hapticLight();
     setTheme(newTheme);
     await Storage.setTheme(newTheme);
     onRefresh();
   };
 
   const handleSetFontSize = async (size: 'small' | 'default' | 'large') => {
+    hapticLight();
     setFontSizeState(size);
     Storage.setFontSize(size);
     const updated: UserProfile = { ...profile, fontSize: size };
@@ -45,6 +48,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ profile, onRefre
   };
 
   const handleExportBackup = () => {
+    hapticMedium();
     const backupJson = Storage.exportBackup();
     const now = new Date().toISOString().split('T')[0];
     const filename = `sanctuary-backup-${now}.json`;
@@ -58,9 +62,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ profile, onRefre
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    hapticSuccess();
   };
 
   const handleClearAll = async () => {
+    hapticMedium();
     await Storage.clearAllSanctuaryData();
     window.location.reload();
   };

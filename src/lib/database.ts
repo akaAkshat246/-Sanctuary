@@ -382,6 +382,25 @@ export const Database = {
       console.error('SQLite deleteLink error:', e);
       return false;
     }
+  },
+
+  async clearAllTables(): Promise<boolean> {
+    const db = await getDatabase();
+    if (!db) return false;
+    try {
+      await db.execute(`
+        DELETE FROM journals;
+        DELETE FROM memories;
+        DELETE FROM reminders;
+        DELETE FROM moods;
+        DELETE FROM links;
+        DELETE FROM settings;
+      `);
+      return true;
+    } catch (e) {
+      console.error('SQLite clearAllTables error:', e);
+      return false;
+    }
   }
 };
 

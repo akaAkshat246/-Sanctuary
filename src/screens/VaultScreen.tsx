@@ -97,7 +97,11 @@ export const VaultScreen: React.FC<VaultScreenProps> = ({ memories, onRefresh, s
 
   const handleSaveMemory = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uploadedFile) return;
+    if (!uploadedFile) {
+      showToast?.('Please choose an image or file first', 'error');
+      fileInputRef.current?.click();
+      return;
+    }
 
     hapticMedium();
     const memoryItem: MemoryItem = {
@@ -401,45 +405,95 @@ export const VaultScreen: React.FC<VaultScreenProps> = ({ memories, onRefresh, s
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in">
           <div className="relative w-full max-w-xl bg-white dark:bg-[#0c1e19] border border-[#dce9e3] dark:border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-semibold truncate text-[#12332a] dark:text-white">
-                {activePreview.title}
-              </h4>
+              <div className="min-w-0 pr-4">
+                <h4 className="text-sm font-semibold truncate text-[#12332a] dark:text-white">
+                  {activePreview.title}
+                </h4>
+                <p className="text-[10px] text-[#8fa7a0] font-mono">
+                  {new Date(activePreview.createdAt).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
+                </p>
+              </div>
               <button
                 onClick={() => setActivePreview(null)}
                 className="p-1 rounded-full text-gray-400 hover:text-black dark:hover:text-white"
+                aria-label="Close"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="flex items-center justify-center p-4 bg-gray-50 dark:bg-black/30 rounded-2xl">
+            <div className="flex items-center justify-center p-4 bg-gray-50 dark:bg-black/30 rounded-2xl overflow-hidden">
               {activePreview.type === 'IMAGE' ? (
-                <img
-                  src={activePreview.fileUrl}
-                  alt={activePreview.title}
-                  className="max-h-[60vh] object-contain rounded-xl"
-                />
+                <div className="w-full flex flex-col items-center space-y-3">
+                  <img
+                    src={activePreview.fileUrl}
+                    alt={activePreview.title}
+                    className="max-h-[55vh] object-contain rounded-xl shadow-xs"
+                  />
+                  {activePreview.caption && (
+                    <p className="text-xs text-[#5b7970] dark:text-[#8fa7a0] italic text-center font-quote px-4">
+                      "{activePreview.caption}"
+                    </p>
+                  )}
+                </div>
               ) : activePreview.type === 'VIDEO' ? (
-                <video src={activePreview.fileUrl} controls className="max-h-[60vh] rounded-xl" />
+                <div className="w-full space-y-3">
+                  <video src={activePreview.fileUrl} controls className="max-h-[55vh] w-full rounded-xl" />
+                  {activePreview.caption && (
+                    <p className="text-xs text-[#5b7970] dark:text-[#8fa7a0] italic text-center font-quote px-4">
+                      "{activePreview.caption}"
+                    </p>
+                  )}
+                </div>
               ) : activePreview.type === 'AUDIO' ? (
                 <div className="w-full space-y-3">
                   <audio src={activePreview.fileUrl} controls className="w-full" />
                   {activePreview.caption && (
-                    <p className="text-xs text-[#5b7970] italic text-center font-quote">
+                    <p className="text-xs text-[#5b7970] dark:text-[#8fa7a0] italic text-center font-quote px-4">
                       "{activePreview.caption}"
                     </p>
                   )}
                 </div>
               ) : (
-                <a
-                  href={activePreview.fileUrl}
-                  download={activePreview.fileName}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#082a20] text-white text-xs"
-                >
-                  <Download className="w-4 h-4" />
-                  Download
-                </a>
+                <div className="w-full flex flex-col items-center space-y-3 py-6">
+                  <span className="text-xs text-[#5b7970] dark:text-[#8fa7a0] font-mono">
+                    {activePreview.fileName}
+                  </span>
+                  {activePreview.caption && (
+                    <p className="text-xs text-[#5b7970] dark:text-[#8fa7a0] italic text-center font-quote">
+                      "{activePreview.caption}"
+                    </p>
+                  )}
+                </div>
               )}
+            </div>
+
+            {/* Modal Bottom Actions */}
+            <div className="flex items-center justify-between pt-1">
+              <button
+                type="button"
+                onClick={(e) => {
+                  handleDelete(e, activePreview.id);
+                  showToast?.('Memory removed from vault', 'info');
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-medium transition"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete</span>
+              </button>
+
+              <a
+                href={activePreview.fileUrl}
+                download={activePreview.fileName || activePreview.title}
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-[#082a20] hover:bg-[#0c382b] text-white text-xs font-medium shadow-xs transition"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Download</span>
+              </a>
             </div>
           </div>
         </div>

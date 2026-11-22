@@ -21,6 +21,7 @@ function computeTimeGreeting(): string {
 export const HomeScreen: React.FC<HomeScreenProps> = ({ profile, onOpenProfile, showToast }) => {
   const [time, setTime] = useState(new Date());
   const [selectedMood, setSelectedMood] = useState<MoodType | null>(null);
+  const [quoteIndex, setQuoteIndex] = useState(0);
 
   // Live timer for clock
   useEffect(() => {
@@ -56,9 +57,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ profile, onOpenProfile, 
     showToast?.(`Mood recorded: ${mood}`, 'info');
   };
 
-  const currentQuote = LITERARY_QUOTES[0];
+  const currentQuote = LITERARY_QUOTES[quoteIndex % LITERARY_QUOTES.length];
   const greeting = useMemo(computeTimeGreeting, [time]);
   const subtitleQuote = 'Proud of you.';
+
+  const handleNextQuote = () => {
+    hapticLight();
+    setQuoteIndex((prev) => (prev + 1) % LITERARY_QUOTES.length);
+  };
 
   // Clock format matching video: "19 46" and small seconds "23"
   const hours = String(time.getHours()).padStart(2, '0');
@@ -191,7 +197,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ profile, onOpenProfile, 
         </div>
 
         {/* Right Column: Literary Quote Card */}
-        <div className="rounded-[28px] p-8 bg-[#fbfdfc] dark:bg-white/5 border border-[#dce9e3] dark:border-white/10 shadow-xs space-y-6 flex flex-col justify-between min-h-[220px]">
+        <div
+          onClick={handleNextQuote}
+          title="Tap for next literary quote"
+          className="rounded-[28px] p-8 bg-[#fbfdfc] dark:bg-white/5 border border-[#dce9e3] dark:border-white/10 shadow-xs space-y-6 flex flex-col justify-between min-h-[220px] cursor-pointer hover:border-[#12332a]/30 transition select-none active:scale-[0.99]"
+        >
           <div className="space-y-4">
             <span className="font-quote text-4xl text-[#8fa7a0]/40 leading-none select-none block">
               ““

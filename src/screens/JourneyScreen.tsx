@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { PlusIcon as Plus } from '../components/icons';
 import type { JournalEntry } from '../types';
+import { hapticLight } from '../lib/haptics';
 
 interface JourneyScreenProps {
   entries: JournalEntry[];
@@ -63,7 +64,10 @@ export const JourneyScreen: React.FC<JourneyScreenProps> = ({
                   return (
                     <div
                       key={entry.id}
-                      onClick={() => onOpenJournal(entry.id)}
+                      onClick={() => {
+                        hapticLight();
+                        onOpenJournal(entry.id);
+                      }}
                       className="group relative p-5 rounded-[24px] bg-[#fbfdfc] dark:bg-white/5 border border-[#dce9e3] dark:border-white/10 shadow-xs hover:border-[#12332a]/30 cursor-pointer transition space-y-2"
                     >
                       {/* Timeline Dot Node matching Frame 174s */}
@@ -100,7 +104,10 @@ export const JourneyScreen: React.FC<JourneyScreenProps> = ({
       {onNewEntry && (
         <div className="fixed bottom-6 right-6 z-20">
           <button
-            onClick={onNewEntry}
+            onClick={() => {
+              hapticLight();
+              onNewEntry();
+            }}
             className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#0d2e26] hover:bg-[#15463a] text-white text-xs font-medium shadow-lg transition active:scale-[0.98]"
           >
             <Plus className="w-4 h-4" />

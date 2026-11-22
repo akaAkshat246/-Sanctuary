@@ -10,6 +10,7 @@ import {
   DatabaseIcon as HardDrive,
   BellIcon as Bell,
 } from '../components/icons';
+import { hapticLight } from '../lib/haptics';
 
 interface FAQItem {
   question: string;
@@ -74,7 +75,10 @@ export const HelpScreen: React.FC = () => {
             >
               <button
                 type="button"
-                onClick={() => setOpenIndex(isOpen ? null : index)}
+                onClick={() => {
+                  hapticLight();
+                  setOpenIndex(isOpen ? null : index);
+                }}
                 className="w-full flex items-center justify-between p-4 text-left transition hover:bg-[var(--color-surface-variant)]/40"
               >
                 <div className="flex items-center gap-3">

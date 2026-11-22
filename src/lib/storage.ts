@@ -364,6 +364,11 @@ export const Storage = {
     } catch {
       // ignore
     }
+    try {
+      await Database.clearAllTables();
+    } catch {
+      // ignore
+    }
     Object.keys(localStorage).forEach(key => {
       if (key.startsWith('sanctuary_')) {
         localStorage.removeItem(key);
@@ -385,5 +390,50 @@ export const Storage = {
       }
     });
     return JSON.stringify(data, null, 2);
+  },
+
+  // Import full backup
+  async importBackup(jsonString: string): Promise<boolean> {
+    try {
+      const data = JSON.parse(jsonString);
+      if (!data || typeof data !== 'object') return false;
+
+      for (const [key, val] of Object.entries(data)) {
+        if (!key.startsWith('sanctuary_')) continue;
+        const serialized = typeof val === 'string' ? val : JSON.stringify(val);
+        localStorage.setItem(key, serialized);
+
+        // Also sync profile into Preferences if present
+        if (key === STORAGE_KEYS.PROFILE) {
+          try {
+            await Preferences.set({ key, value: serialized });
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      // Sync imported items into SQLite
+      if (Array.isArray(data[STORAGE_KEYS.JOURNALS])) {
+        for (const j of data[STORAGE_KEYS.JOURNALS] as JournalEntry[]) {
+          await Database.saveJournal(j);
+        }
+      }
+      if (Array.isArray(data[STORAGE_KEYS.REMINDERS])) {
+        for (const r of data[STORAGE_KEYS.REMINDERS] as ReminderItem[]) {
+          await Database.saveReminder(r);
+        }
+      }
+      if (Array.isArray(data[STORAGE_KEYS.MEMORIES])) {
+        for (const m of data[STORAGE_KEYS.MEMORIES] as MemoryItem[]) {
+          await Database.saveMemory(m);
+        }
+      }
+
+      return true;
+    } catch (e) {
+      console.error('Storage importBackup error:', e);
+      return false;
+    }
   }
 };

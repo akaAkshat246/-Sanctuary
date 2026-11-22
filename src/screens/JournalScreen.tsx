@@ -6,6 +6,7 @@ import {
   MindfulStarWithPlusIcon,
   BookOpenIcon,
   SaveIcon,
+  TrashIcon,
 } from '../components/icons';
 import type { JournalEntry, JournalCategory } from '../types';
 import { Storage } from '../lib/storage';
@@ -143,6 +144,18 @@ export const JournalScreen: React.FC<JournalScreenProps> = ({
     showToast?.('Reflection saved to sanctuary');
   };
 
+  const handleDeleteEntry = async () => {
+    if (!editingEntry) return;
+    if (window.confirm('Delete this reflection permanently?')) {
+      hapticMedium();
+      await Storage.deleteJournal(editingEntry.id);
+      setIsEditorOpen(false);
+      setEditingEntry(null);
+      onRefresh();
+      showToast?.('Reflection deleted', 'info');
+    }
+  };
+
   // Filtered entries
   const filteredEntries = useMemo(() => {
     return entries.filter((e) => {
@@ -182,14 +195,28 @@ export const JournalScreen: React.FC<JournalScreenProps> = ({
               <ArrowLeft className="w-5 h-5 stroke-[2]" />
             </button>
 
-            <button
-              type="button"
-              onClick={handleSaveEntry}
-              className="px-5 py-2.5 rounded-2xl bg-[#587c6e] hover:bg-[#48665a] text-white text-xs font-semibold shadow-xs flex items-center gap-2 transition active:scale-[0.98]"
-            >
-              <SaveIcon className="w-4 h-4 stroke-[2]" />
-              <span>Save Entry</span>
-            </button>
+            <div className="flex items-center gap-2">
+              {editingEntry && (
+                <button
+                  type="button"
+                  onClick={handleDeleteEntry}
+                  className="px-4 py-2.5 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold shadow-xs flex items-center gap-1.5 transition active:scale-[0.98]"
+                  title="Delete Entry"
+                >
+                  <TrashIcon className="w-3.5 h-3.5 stroke-[2]" />
+                  <span>Delete</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSaveEntry}
+                className="px-5 py-2.5 rounded-2xl bg-[#587c6e] hover:bg-[#48665a] text-white text-xs font-semibold shadow-xs flex items-center gap-2 transition active:scale-[0.98]"
+              >
+                <SaveIcon className="w-4 h-4 stroke-[2]" />
+                <span>Save Entry</span>
+              </button>
+            </div>
           </div>
 
           {/* Form Content */}

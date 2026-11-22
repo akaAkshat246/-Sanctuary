@@ -8,9 +8,9 @@
 
     /* Light Theme Palette matching video */
     --color-bg: #ebf4f0;
-    --color-surface: #ffffff;
+    --color-surface: #fbfdfc;
     --color-surface-variant: #f3f8f5;
-    --color-surface-border: #e2ede8;
+    --color-surface-border: #dce9e3;
 
     --color-primary: #0d2e26;
     --color-primary-light: #18463a;
@@ -26,12 +26,12 @@
     --color-on-surface: #12332a;
     --color-on-surface-variant: #5b7970;
 
-    --glass-bg: rgba(255, 255, 255, 0.88);
-    --glass-border: rgba(255, 255, 255, 0.6);
-    --glass-shadow: 0 10px 30px 0 rgba(13, 46, 38, 0.05);
+    --glass-bg: rgba(251, 253, 252, 0.92);
+    --glass-border: #dce9e3;
+    --glass-shadow: none;
 
-    --nav-bg: #ffffff;
-    --nav-border: #e2ede8;
+    --nav-bg: #fbfdfc;
+    --nav-border: #dce9e3;
     --nav-icon-inactive: #6c8a81;
     --nav-icon-active: #0d2e26;
   }
@@ -59,7 +59,7 @@
 
     --glass-bg: rgba(12, 30, 25, 0.85);
     --glass-border: rgba(255, 255, 255, 0.08);
-    --glass-shadow: 0 10px 30px 0 rgba(0, 0, 0, 0.5);
+    --glass-shadow: none;
 
     --nav-bg: #0c1e19;
     --nav-border: #1a3830;

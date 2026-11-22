@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { PlusIcon as Plus, TrashIcon as Trash2, CloseIcon as X } from '../components/icons';
 import type { JournalEntry, TagItem } from '../types';
 import { Storage } from '../lib/storage';
+import { hapticLight, hapticMedium, hapticSuccess } from '../lib/haptics';
 
 interface TagsScreenProps {
   entries: JournalEntry[];
@@ -57,6 +58,7 @@ export const TagsScreen: React.FC<TagsScreenProps> = ({ entries, onOpenJournal }
     const clean = tagName.trim();
     if (!clean) return;
 
+    hapticMedium();
     const newTag: TagItem = {
       id: `tag_${Date.now()}`,
       name: clean,
@@ -68,10 +70,12 @@ export const TagsScreen: React.FC<TagsScreenProps> = ({ entries, onOpenJournal }
     setTagName('');
     setIsModalOpen(false);
     refreshTags();
+    hapticSuccess();
   };
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    hapticMedium();
     await Storage.deleteTag(id);
     if (selectedTag?.id === id) setSelectedTag(null);
     refreshTags();
@@ -121,7 +125,10 @@ export const TagsScreen: React.FC<TagsScreenProps> = ({ entries, onOpenJournal }
               return (
                 <div
                   key={t.id}
-                  onClick={() => setSelectedTag((prev) => (prev?.id === t.id ? null : t))}
+                  onClick={() => {
+                    hapticLight();
+                    setSelectedTag((prev) => (prev?.id === t.id ? null : t));
+                  }}
                   className={`p-4 rounded-2xl bg-[#fbfdfc] dark:bg-white/5 border transition cursor-pointer shadow-xs flex flex-col justify-between space-y-3 ${
                     isSelected
                       ? 'border-[#0d2e26] dark:border-white'

@@ -1,7 +1,7 @@
 import { Preferences } from '@capacitor/preferences';
 import { Database } from './database';
 import { NativeFiles } from './filesystem';
-import type { UserProfile, JournalEntry, MemoryItem, ReminderItem, SavedLink, MoodLog } from '../types';
+import type { UserProfile, JournalEntry, MemoryItem, ReminderItem, MoodLog, TagItem, SavedLink } from '../types';
 
 const STORAGE_KEYS = {
   PROFILE: 'sanctuary_profile',
@@ -9,22 +9,32 @@ const STORAGE_KEYS = {
   JOURNALS: 'sanctuary_journals',
   MEMORIES: 'sanctuary_memories',
   REMINDERS: 'sanctuary_reminders',
-  LINKS: 'sanctuary_links',
   MOODS: 'sanctuary_moods',
+  LINKS: 'sanctuary_links',
+  TAGS: 'sanctuary_tags',
   DRAFT: 'sanctuary_draft',
   MIGRATED: 'sanctuary_migrated_sqlite_v1',
 };
 
 const DEFAULT_PROFILE: UserProfile = {
   id: 'usr_default',
-  name: 'Traveler',
-  gender: 'They/Them',
-  birthday: '',
-  avatar: '🐱',
+  name: 'Akshat',
+  gender: 'Male',
+  birthday: '2006-09-18',
+  avatar: '',
   theme: 'light',
+  fontSize: 'default',
   hasCompletedOnboarding: false,
   createdAt: new Date().toISOString(),
 };
+
+const DEFAULT_TAGS: TagItem[] = [
+  { id: 'tag_1', name: 'Peaceful', color: '#10b981', createdAt: new Date().toISOString() },
+  { id: 'tag_2', name: 'Ideas', color: '#06b6d4', createdAt: new Date().toISOString() },
+  { id: 'tag_3', name: 'Daily', color: '#3b82f6', createdAt: new Date().toISOString() },
+  { id: 'tag_4', name: 'Mindset', color: '#8b5cf6', createdAt: new Date().toISOString() },
+  { id: 'tag_5', name: 'Gratitude', color: '#ec4899', createdAt: new Date().toISOString() },
+];
 
 function safeGetLocal<T>(key: string, defaultValue: T): T {
   try {
@@ -289,6 +299,28 @@ export const Storage = {
     await Database.saveMood(log);
   },
 
+  // Tags
+  getTags(): TagItem[] {
+    return safeGetLocal<TagItem[]>(STORAGE_KEYS.TAGS, DEFAULT_TAGS);
+  },
+  async getTagsAsync(): Promise<TagItem[]> {
+    return Storage.getTags();
+  },
+  async saveTag(tag: TagItem): Promise<void> {
+    const list = Storage.getTags();
+    const index = list.findIndex(t => t.id === tag.id);
+    if (index >= 0) {
+      list[index] = tag;
+    } else {
+      list.push(tag);
+    }
+    safeSetLocal(STORAGE_KEYS.TAGS, list);
+  },
+  async deleteTag(id: string): Promise<void> {
+    const list = Storage.getTags().filter(t => t.id !== id);
+    safeSetLocal(STORAGE_KEYS.TAGS, list);
+  },
+
   // Links
   async getLinksAsync(): Promise<SavedLink[]> {
     const fromDb = await Database.getLinks();
@@ -311,6 +343,18 @@ export const Storage = {
     const list = Storage.getLinks().filter(l => l.id !== id);
     safeSetLocal(STORAGE_KEYS.LINKS, list);
     await Database.deleteLink(id);
+  },
+
+  // Font Size
+  setFontSize(size: 'small' | 'default' | 'large'): void {
+    const root = document.documentElement;
+    if (size === 'small') {
+      root.style.fontSize = '14px';
+    } else if (size === 'large') {
+      root.style.fontSize = '18px';
+    } else {
+      root.style.fontSize = '16px';
+    }
   },
 
   // Wipe all sanctuary data safely

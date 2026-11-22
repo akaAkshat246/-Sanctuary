@@ -1,5 +1,13 @@
 import React, { useState } from 'react';
-import { Bookmark, Plus, ExternalLink, Trash2, Globe, Copy, Check } from 'lucide-react';
+import {
+  BookmarkIcon as Bookmark,
+  PlusIcon as Plus,
+  ExternalLinkIcon as ExternalLink,
+  TrashIcon as Trash2,
+  GlobeIcon as Globe,
+  CopyIcon as Copy,
+  CheckIcon as Check,
+} from '../components/icons';
 import type { SavedLink } from '../types';
 import { Storage } from '../lib/storage';
 

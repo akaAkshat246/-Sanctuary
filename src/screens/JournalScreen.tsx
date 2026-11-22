@@ -1,32 +1,39 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Plus, Search, Trash2, ArrowLeft, Sparkles, Tag, Check, Calendar, Edit3 } from 'lucide-react';
-import type { JournalEntry, MoodType } from '../types';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import {
+  PlusIcon as Plus,
+  SearchIcon as Search,
+  ArrowLeftIcon as ArrowLeft,
+  MindfulStarWithPlusIcon,
+  BookOpenIcon,
+  SaveIcon,
+} from '../components/icons';
+import type { JournalEntry, JournalCategory } from '../types';
 import { Storage } from '../lib/storage';
+import { hapticLight, hapticMedium, hapticSuccess } from '../lib/haptics';
 
 interface JournalScreenProps {
   entries: JournalEntry[];
   onRefresh: () => void;
   initialEditingId?: string | null;
   onClearInitialEdit?: () => void;
+  showToast?: (text: string, type?: 'success' | 'info' | 'error') => void;
 }
 
-const MOODS: { type: MoodType; label: string; symbol: string; color: string }[] = [
-  { type: 'peaceful', label: 'Peaceful', symbol: '◇', color: 'text-teal-400 border-teal-500/40 bg-teal-500/10' },
-  { type: 'radiant', label: 'Radiant', symbol: '◈', color: 'text-amber-400 border-amber-500/40 bg-amber-500/10' },
-  { type: 'contemplative', label: 'Contemplative', symbol: '⬖', color: 'text-indigo-400 border-indigo-500/40 bg-indigo-500/10' },
-  { type: 'tender', label: 'Tender', symbol: '◌', color: 'text-rose-400 border-rose-500/40 bg-rose-500/10' },
-  { type: 'weary', label: 'Weary', symbol: '⬘', color: 'text-slate-400 border-slate-500/40 bg-slate-500/10' },
+const CATEGORIES: Array<{ type: JournalCategory; label: string }> = [
+  { type: 'PEACEFUL', label: 'Peaceful' },
+  { type: 'JOYFUL', label: 'Joyful' },
+  { type: 'REFLECTIVE', label: 'Reflective' },
+  { type: 'MELANCHOLIC', label: 'Melancholy' },
+  { type: 'ENERGETIC', label: 'Energetic' },
 ];
 
-const POETIC_PROMPTS = [
+const INSPIRE_PROMPTS = [
   "What is a quiet sound that comforted you today, and why did it stay with you?",
-  "Describe an object on your table as though Franz Kafka had placed it there in 1912.",
   "What feeling have you been keeping in the margin of your mind without giving it a name?",
   "Write about the light that falls through your window at this exact hour.",
   "If today were a single sentence written in a weathered notebook, what would it say?",
   "What would you tell your younger self if you met them for three minutes at twilight?",
-  "What grief or worry are you ready to surrender to the quiet night?",
-  "Recall a person whose voice made the world feel slightly less dangerous."
+  "What burden or worry are you ready to set down tonight?",
 ];
 
 export const JournalScreen: React.FC<JournalScreenProps> = ({
@@ -34,25 +41,25 @@ export const JournalScreen: React.FC<JournalScreenProps> = ({
   onRefresh,
   initialEditingId = null,
   onClearInitialEdit,
+  showToast,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // Find initial entry if targeted
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+
   const initialEntry = useMemo(() => {
-    return initialEditingId ? entries.find(e => e.id === initialEditingId) || null : null;
+    return initialEditingId ? entries.find((e) => e.id === initialEditingId) || null : null;
   }, [initialEditingId, entries]);
 
   const [editingEntry, setEditingEntry] = useState<JournalEntry | null>(initialEntry);
-  const [isCreating, setIsCreating] = useState(Boolean(initialEntry));
+  const [isEditorOpen, setIsEditorOpen] = useState(Boolean(initialEntry));
 
-  // Form states
+  // Editor states
   const [title, setTitle] = useState(() => initialEntry?.title || '');
   const [content, setContent] = useState(() => initialEntry?.content || '');
-  const [mood, setMood] = useState<MoodType>(() => initialEntry?.mood || 'peaceful');
-  const [tagInput, setTagInput] = useState('');
-  const [tags, setTags] = useState<string[]>(() => initialEntry?.tags || []);
-  const [saveStatus, setSaveStatus] = useState<string>('');
-  const [isInspiring, setIsInspiring] = useState(false);
+  const [category, setCategory] = useState<JournalCategory>(
+    () => (initialEntry?.mood as JournalCategory) || 'REFLECTIVE'
+  );
+  const [tagsInput, setTagsInput] = useState(() => (initialEntry?.tags || []).join(', '));
 
   const autoSaveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -60,336 +67,287 @@ export const JournalScreen: React.FC<JournalScreenProps> = ({
     const draft = Storage.getDraft();
     setTitle(draft?.title || '');
     setContent(draft?.content || '');
-    setMood('peaceful');
-    setTags([]);
-    setTagInput('');
+    setCategory('REFLECTIVE');
+    setTagsInput('');
     setEditingEntry(null);
-    setIsCreating(true);
+    setIsEditorOpen(true);
     onClearInitialEdit?.();
   }, [onClearInitialEdit]);
 
-  const startEditing = useCallback((entry: JournalEntry) => {
-    setTitle(entry.title);
-    setContent(entry.content);
-    setMood(entry.mood);
-    setTags(entry.tags || []);
-    setTagInput('');
-    setEditingEntry(entry);
-    setIsCreating(true);
-    onClearInitialEdit?.();
-  }, [onClearInitialEdit]);
+  const startEditing = useCallback(
+    (entry: JournalEntry) => {
+      setTitle(entry.title);
+      setContent(entry.content);
+      setCategory((entry.mood as JournalCategory) || 'REFLECTIVE');
+      setTagsInput((entry.tags || []).join(', '));
+      setEditingEntry(entry);
+      setIsEditorOpen(true);
+      onClearInitialEdit?.();
+    },
+    [onClearInitialEdit]
+  );
 
-  // Word count computation
-  const wordCount = useMemo(() => {
-    const trimmed = content.trim();
-    if (!trimmed) return 0;
-    return trimmed.split(/\s+/).length;
-  }, [content]);
-
-  // Auto-save draft every 30 seconds
+  // Auto-save draft
   useEffect(() => {
-    if (!isCreating && !editingEntry) return;
+    if (!isEditorOpen || editingEntry) return;
 
     if (autoSaveTimerRef.current) clearInterval(autoSaveTimerRef.current);
-
     autoSaveTimerRef.current = setInterval(() => {
-      if (content || title) {
+      if (title || content) {
         Storage.saveDraft({ title, content });
-        setSaveStatus('Draft auto-saved');
-        setTimeout(() => setSaveStatus(''), 2500);
       }
-    }, 30000);
+    }, 20000);
 
     return () => {
       if (autoSaveTimerRef.current) clearInterval(autoSaveTimerRef.current);
     };
-  }, [title, content, isCreating, editingEntry]);
+  }, [isEditorOpen, editingEntry, title, content]);
 
-  const handleSave = () => {
-    if (!content.trim() && !title.trim()) return;
+  const handleInspire = () => {
+    hapticLight();
+    const randomPrompt = INSPIRE_PROMPTS[Math.floor(Math.random() * INSPIRE_PROMPTS.length)];
+    if (!content.trim()) {
+      setContent(randomPrompt + '\n\n');
+    } else {
+      setContent((prev) => `${prev.trim()}\n\n- Prompt: ${randomPrompt}\n`);
+    }
+  };
 
-    const newOrUpdated: JournalEntry = {
-      id: editingEntry ? editingEntry.id : `jnl_${Date.now()}`,
-      title: title.trim() || 'Untitled Journal',
+  const handleSaveEntry = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() && !content.trim()) return;
+
+    hapticMedium();
+    const parsedTags = tagsInput
+      .split(',')
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
+
+    const now = new Date().toISOString();
+    const entryToSave: JournalEntry = {
+      id: editingEntry?.id || `jnl_${Date.now()}`,
+      title: title.trim() || 'Untitled Reflection',
       content: content.trim(),
-      mood,
-      tags,
-      createdAt: editingEntry ? editingEntry.createdAt : new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      mood: category,
+      tags: parsedTags,
+      createdAt: editingEntry?.createdAt || now,
+      updatedAt: now,
     };
 
-    Storage.saveJournal(newOrUpdated);
+    await Storage.saveJournal(entryToSave);
     Storage.clearDraft();
-    onRefresh();
-    setIsCreating(false);
+    setIsEditorOpen(false);
     setEditingEntry(null);
+    onRefresh();
+    hapticSuccess();
+    showToast?.('Reflection saved to sanctuary');
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this sacred entry?')) {
-      Storage.deleteJournal(id);
-      onRefresh();
-      setIsCreating(false);
-      setEditingEntry(null);
-    }
-  };
-
-  const handleAddTag = (e: React.KeyboardEvent | React.FocusEvent) => {
-    if ('key' in e && e.key !== 'Enter' && e.key !== ',') return;
-    e.preventDefault();
-    const clean = tagInput.trim().replace(/^#/, '').toLowerCase();
-    if (clean && !tags.includes(clean)) {
-      setTags([...tags, clean]);
-    }
-    setTagInput('');
-  };
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    setTags(tags.filter((t) => t !== tagToRemove));
-  };
-
-  const fallbackPrompt = () => {
-    const random = POETIC_PROMPTS[Math.floor(Math.random() * POETIC_PROMPTS.length)];
-    setContent((prev) => (prev ? `${prev}\n\n[Prompt: ${random}]\n` : `[Prompt: ${random}]\n\n`));
-  };
-
-  const handleInspireMe = () => {
-    setIsInspiring(true);
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem('sanctuary_gemini_key');
-    if (apiKey) {
-      fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: 'Generate a short, hauntingly poetic journaling prompt in the tone of Franz Kafka or Rainer Maria Rilke. Max 2 sentences.',
-                  },
-                ],
-              },
-            ],
-          }),
-        }
-      )
-        .then((res) => res.json())
-        .then((data) => {
-          const generated = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (generated) {
-            setContent((prev) => (prev ? `${prev}\n\n[Prompt: ${generated.trim()}]\n` : `[Prompt: ${generated.trim()}]\n\n`));
-          } else {
-            fallbackPrompt();
-          }
-        })
-        .catch(() => fallbackPrompt())
-        .finally(() => setIsInspiring(false));
-    } else {
-      setTimeout(() => {
-        fallbackPrompt();
-        setIsInspiring(false);
-      }, 300);
-    }
-  };
-
-  // Filtered entries with debounce
+  // Filtered entries
   const filteredEntries = useMemo(() => {
-    const q = searchTerm.toLowerCase().trim();
-    if (!q) return entries;
-    return entries.filter(
-      (e) =>
-        e.title.toLowerCase().includes(q) ||
-        e.content.toLowerCase().includes(q) ||
-        e.tags?.some((t) => t.toLowerCase().includes(q))
-    );
-  }, [entries, searchTerm]);
+    return entries.filter((e) => {
+      const matchesSearch =
+        e.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        e.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (e.tags && e.tags.some((t) => t.toLowerCase().includes(searchTerm.toLowerCase())));
+
+      const matchesCategory =
+        selectedCategory === 'ALL' || e.mood.toUpperCase() === selectedCategory.toUpperCase();
+
+      return matchesSearch && matchesCategory;
+    });
+  }, [entries, searchTerm, selectedCategory]);
+
+  const wordCount = useMemo(() => {
+    const trimmed = content.trim();
+    return trimmed ? trimmed.split(/\s+/).length : 0;
+  }, [content]);
 
   return (
-    <div className="space-y-4 pb-24 animate-in fade-in duration-300">
-      {/* If Creating / Editing */}
-      {isCreating ? (
-        <div className="space-y-4">
-          {/* Header navigation bar for editor */}
+    <div className="space-y-6 pb-20 animate-in fade-in duration-300 max-w-5xl mx-auto">
+      {isEditorOpen ? (
+        /* Full Journal Editor matching Frame 81s & 102s */
+        <div className="relative min-h-[75vh] flex flex-col justify-between space-y-6 animate-in fade-in duration-200">
+          {/* Header Row */}
           <div className="flex items-center justify-between">
             <button
+              type="button"
               onClick={() => {
-                if (window.confirm('Discard unsaved changes?')) {
-                  setIsCreating(false);
-                  setEditingEntry(null);
-                }
+                setIsEditorOpen(false);
+                setEditingEntry(null);
               }}
-              className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]"
+              className="p-2 -ml-2 rounded-xl text-[#12332a] hover:opacity-75 dark:text-white transition"
+              aria-label="Back"
             >
-              <ArrowLeft className="w-4 h-4" /> Back to Journal
+              <ArrowLeft className="w-5 h-5 stroke-[2]" />
             </button>
 
-            <div className="flex items-center gap-2">
-              {saveStatus && (
-                <span className="text-[11px] text-[var(--color-gold)] font-medium animate-pulse">
-                  {saveStatus}
-                </span>
-              )}
-              {editingEntry && (
-                <button
-                  onClick={() => handleDelete(editingEntry.id)}
-                  className="p-2 rounded-xl text-rose-500 hover:bg-rose-500/10 transition-colors"
-                  title="Delete Entry"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              )}
+            <button
+              type="button"
+              onClick={handleSaveEntry}
+              className="px-5 py-2.5 rounded-2xl bg-[#587c6e] hover:bg-[#48665a] text-white text-xs font-semibold shadow-xs flex items-center gap-2 transition active:scale-[0.98]"
+            >
+              <SaveIcon className="w-4 h-4 stroke-[2]" />
+              <span>Save Entry</span>
+            </button>
+          </div>
+
+          {/* Form Content */}
+          <div className="flex-1 space-y-6 pt-2">
+            {/* Title Input matching Image 2 */}
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Title your thoughts..."
+              className="w-full bg-transparent font-heading text-3xl sm:text-4xl text-[#12332a] dark:text-white placeholder-[#8fa7a0]/40 focus:outline-none transition tracking-wide"
+            />
+
+            {/* Floating Toolbar Capsule Pill matching Image 2 */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1 p-1 rounded-full bg-white/70 dark:bg-white/10 border border-white/60 dark:border-white/10 shadow-xs backdrop-blur-md">
+                {CATEGORIES.map((c) => {
+                  const isSelected = category === c.type;
+                  return (
+                    <button
+                      key={c.type}
+                      type="button"
+                      onClick={() => setCategory(c.type)}
+                      className={`px-3.5 py-1.5 rounded-full text-xs transition ${
+                        isSelected
+                          ? 'bg-white dark:bg-white/20 text-[#12332a] dark:text-white font-semibold shadow-xs'
+                          : 'text-[#608075] dark:text-[#8fa7a0] hover:text-[#12332a] dark:hover:text-white'
+                      }`}
+                    >
+                      {c.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <input
+                type="text"
+                value={tagsInput}
+                onChange={(e) => setTagsInput(e.target.value)}
+                placeholder="# Add tags (comma separated)"
+                className="bg-white/70 dark:bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/60 dark:border-white/10 shadow-xs text-xs text-[#12332a] dark:text-white placeholder-[#8fa7a0] focus:outline-none min-w-[200px]"
+              />
+            </div>
+
+            {/* Writing Canvas & Floating Inspire Button matching Image 2 */}
+            <div className="relative pt-2">
+              <textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                rows={14}
+                placeholder="What's on your mind today? Write freely..."
+                className="w-full bg-transparent text-sm sm:text-base leading-relaxed text-[#12332a] dark:text-white placeholder-[#8fa7a0]/40 focus:outline-none resize-none font-body"
+              />
+
+              {/* Floating Inspire Me button on right matching Image 2 */}
               <button
-                onClick={handleSave}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--color-primary)] hover:bg-[var(--color-primary-light)] text-white text-xs font-semibold shadow-sm active:scale-95 transition-all"
+                type="button"
+                onClick={handleInspire}
+                className="absolute right-0 top-6 px-4 py-2 rounded-2xl bg-white dark:bg-white/10 border border-white/70 dark:border-white/15 text-[#12332a] dark:text-white text-xs font-semibold shadow-xs flex items-center gap-2 hover:bg-[#f7faf9] transition"
               >
-                <Check className="w-4 h-4" /> Save
+                <MindfulStarWithPlusIcon className="w-4 h-4 text-[#12332a] dark:text-teal-300" />
+                <span>Inspire Me</span>
               </button>
             </div>
           </div>
 
-          {/* Mood Selector (5 moods, abstract shapes, no emoji) */}
-          <div className="p-3.5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-surface-border)]">
-            <div className="text-[11px] uppercase font-semibold text-[var(--color-on-surface-variant)] mb-2">
-              Atmosphere & Inner Weather
-            </div>
-            <div className="grid grid-cols-5 gap-2">
-              {MOODS.map((m) => (
-                <button
-                  type="button"
-                  key={m.type}
-                  onClick={() => setMood(m.type)}
-                  className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-all ${
-                    mood === m.type
-                      ? `${m.color} ring-2 ring-teal-500/40 font-semibold scale-102`
-                      : 'border-[var(--color-surface-border)] bg-[var(--color-surface-variant)]/40 text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-variant)]'
-                  }`}
-                >
-                  <span className="text-base font-serif">{m.symbol}</span>
-                  <span className="text-[10px] mt-0.5">{m.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Title Input */}
-          <input
-            type="text"
-            placeholder="Title of this contemplation..."
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full text-xl font-heading font-semibold px-4 py-3 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-surface-border)] text-[var(--color-on-surface)] placeholder:text-[var(--color-text-light)] focus:outline-none focus:ring-2 focus:ring-teal-500/30"
-          />
-
-          {/* Gemini Inspire Me Bar */}
-          <div className="flex items-center justify-between px-1">
-            <button
-              type="button"
-              onClick={handleInspireMe}
-              disabled={isInspiring}
-              className="flex items-center gap-1.5 text-xs text-[var(--color-gold)] hover:text-[var(--color-gold-light)] font-medium transition-colors"
-            >
-              <Sparkles className={`w-3.5 h-3.5 ${isInspiring ? 'animate-spin' : ''}`} />
-              {isInspiring ? 'Summoning muse...' : 'Inspire Me (Gemini Prompt)'}
-            </button>
-
-            <span className="text-[11px] font-mono text-[var(--color-on-surface-variant)]">
-              {wordCount} {wordCount === 1 ? 'word' : 'words'}
+          {/* Bottom Word Counter Pill matching Image 2 */}
+          <div className="pt-4">
+            <span className="inline-block px-4 py-1.5 rounded-full bg-white/70 dark:bg-white/10 border border-white/60 dark:border-white/10 text-xs text-[#5b7970] dark:text-[#8fa7a0] font-mono shadow-xs">
+              # {wordCount} {wordCount === 1 ? 'words' : 'words'}
             </span>
-          </div>
-
-          {/* Content Editor */}
-          <textarea
-            placeholder="Let your thoughts flow freely. This sanctuary is completely private..."
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            rows={12}
-            className="w-full text-sm font-body px-4 py-3.5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-surface-border)] text-[var(--color-on-surface)] leading-relaxed placeholder:text-[var(--color-text-light)] focus:outline-none focus:ring-2 focus:ring-teal-500/30 resize-y"
-          />
-
-          {/* Tag Input */}
-          <div className="p-3.5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-surface-border)] space-y-2">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--color-on-surface-variant)]">
-              <Tag className="w-3.5 h-3.5 text-[var(--color-gold)]" />
-              <span>Sanctuary Tags (comma or press enter)</span>
-            </div>
-
-            <div className="flex flex-wrap gap-1.5">
-              {tags.map((t) => (
-                <span
-                  key={t}
-                  className="glass-pill px-2.5 py-1 rounded-full text-xs text-[var(--color-primary)] font-medium flex items-center gap-1.5 border border-teal-500/20"
-                >
-                  #{t}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveTag(t)}
-                    className="hover:text-rose-500 text-[11px]"
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-
-              <input
-                type="text"
-                placeholder="Add tag..."
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={handleAddTag}
-                onBlur={handleAddTag}
-                className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-variant)]/60 text-[var(--color-on-surface)] border-none focus:outline-none"
-              />
-            </div>
           </div>
         </div>
       ) : (
-        /* Journal Entries List */
-        <div className="space-y-4">
-          <div className="flex items-center justify-between pt-1">
-            <div>
-              <h2 className="text-xl font-heading font-semibold text-[var(--color-on-surface)]">
-                Writing Space
-              </h2>
-              <p className="text-xs text-[var(--color-on-surface-variant)]">
-                {entries.length} reflections recorded
-              </p>
+        /* Journal Archive View matching Frame 69s */
+        <div className="space-y-6">
+          {/* Header Row */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
+            <div className="space-y-1">
+              <span className="text-[10px] font-semibold tracking-widest text-[#5b7970] uppercase">
+                YOUR REFLECTIONS
+              </span>
+              <h1 className="text-3xl font-heading font-normal tracking-tight text-[#12332a] dark:text-white">
+                Journal Archive
+              </h1>
+            </div>
+
+            {/* Search + New Entry Button */}
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search reflections..."
+                  className="pl-4 pr-9 py-2 rounded-xl bg-[#fbfdfc] dark:bg-white/5 border border-[#dce9e3] dark:border-white/10 text-xs text-[#12332a] dark:text-white placeholder-[#8fa7a0] focus:outline-none shadow-xs w-48 sm:w-56"
+                />
+                <Search className="w-3.5 h-3.5 text-[#8fa7a0] absolute right-3 top-1/2 -translate-y-1/2" />
+              </div>
+
+              <button
+                type="button"
+                onClick={startNewEntry}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0d2e26] hover:bg-[#15463a] text-white text-xs font-medium shadow-xs transition active:scale-[0.98]"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>New Entry</span>
+              </button>
             </div>
           </div>
 
-          {/* Search bar with debounce */}
-          <div className="relative">
-            <Search className="w-4 h-4 text-[var(--color-on-surface-variant)] absolute left-3.5 top-3 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search journals or tags..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-surface-border)] text-xs text-[var(--color-on-surface)] focus:outline-none focus:ring-2 focus:ring-teal-500/30"
-            />
+          {/* Category Filter Pills */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {['ALL', ...CATEGORIES.map((c) => c.type)].map((cat) => {
+              const isSelected = selectedCategory === cat;
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs transition-all ${
+                    isSelected
+                      ? 'bg-[#e5f0eb] dark:bg-white/15 text-[#12332a] dark:text-white font-medium shadow-xs'
+                      : 'text-[#608075] dark:text-[#8fa7a0] hover:bg-[#eef5f2] dark:hover:bg-white/5'
+                  }`}
+                >
+                  {cat}
+                </button>
+              );
+            })}
           </div>
 
-          {/* List of cards */}
+          {/* Empty State or Entries List */}
           {filteredEntries.length === 0 ? (
-            <div className="p-8 text-center rounded-3xl bg-[var(--color-surface)] border border-[var(--color-surface-border)] space-y-3">
-              <div className="w-12 h-12 mx-auto rounded-full bg-teal-500/10 text-[var(--color-primary)] flex items-center justify-center">
-                <Edit3 className="w-6 h-6" />
+            <div className="flex flex-col items-center justify-center text-center py-20 px-4 space-y-4">
+              <div className="w-16 h-16 rounded-full bg-[#fbfdfc] dark:bg-white/5 border border-[#dce9e3] dark:border-white/10 flex items-center justify-center text-[#5b7970] dark:text-[#8fa7a0] shadow-xs">
+                <BookOpenIcon className="w-8 h-8 text-[#5b7970] dark:text-[#8fa7a0]" />
               </div>
-              <h3 className="font-heading font-semibold text-base text-[var(--color-on-surface)]">
-                {searchTerm ? 'No matching reflections found' : 'The page awaits your words'}
-              </h3>
-              <p className="text-xs text-[var(--color-on-surface-variant)] max-w-xs mx-auto">
-                {searchTerm
-                  ? 'Try searching with another keyword or mood tag.'
-                  : 'Write your thoughts, dreams, or unburden your heart. Everything stays strictly on your device.'}
-              </p>
+              <div className="space-y-1">
+                <h3 className="font-heading text-2xl font-normal text-[#12332a] dark:text-white">
+                  No reflections found
+                </h3>
+                <p className="text-xs text-[#5b7970] dark:text-[#8fa7a0]">
+                  Start capturing your thoughts and memories to see them here.
+                </p>
+              </div>
+              {!searchTerm && (
+                <button
+                  onClick={startNewEntry}
+                  className="px-5 py-2.5 rounded-xl bg-[#fbfdfc] dark:bg-white/10 border border-[#dce9e3] dark:border-white/15 text-[#12332a] dark:text-white text-xs font-medium shadow-xs hover:shadow transition"
+                >
+                  Write First Entry
+                </button>
+              )}
             </div>
           ) : (
-            <div className="space-y-3">
-              {filteredEntries.map((item) => {
-                const moodObj = MOODS.find((m) => m.type === item.mood);
-                const dateStr = new Date(item.createdAt).toLocaleDateString(undefined, {
+            <div className="space-y-3.5">
+              {filteredEntries.map((entry) => {
+                const dateDisplay = new Date(entry.createdAt).toLocaleDateString('en-US', {
                   month: 'short',
                   day: 'numeric',
                   year: 'numeric',
@@ -397,55 +355,42 @@ export const JournalScreen: React.FC<JournalScreenProps> = ({
 
                 return (
                   <div
-                    key={item.id}
-                    onClick={() => startEditing(item)}
-                    className="p-4 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-surface-border)] hover:border-teal-500/40 cursor-pointer shadow-xs transition-all hover:scale-[1.01] active:scale-[0.99] space-y-2 group"
+                    key={entry.id}
+                    onClick={() => startEditing(entry)}
+                    className="p-5 rounded-2xl bg-[#fbfdfc] dark:bg-white/5 border border-[#dce9e3] dark:border-white/10 hover:border-[#12332a]/30 cursor-pointer transition space-y-2"
                   >
-                    <div className="flex items-start justify-between">
-                      <h4 className="font-heading font-semibold text-sm text-[var(--color-on-surface)] group-hover:text-[var(--color-primary)] transition-colors line-clamp-1">
-                        {item.title}
-                      </h4>
-                      {moodObj && (
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded-full border flex items-center gap-1 font-serif ${moodObj.color}`}
-                        >
-                          {moodObj.symbol} {moodObj.label}
-                        </span>
-                      )}
+                    <div className="flex items-center justify-between text-[11px] text-[#8fa7a0]">
+                      <span className="uppercase tracking-wider font-semibold">
+                        {entry.mood}
+                      </span>
+                      <span>{dateDisplay}</span>
                     </div>
 
-                    <p className="text-xs text-[var(--color-on-surface-variant)] line-clamp-3 leading-relaxed">
-                      {item.content}
+                    <h3 className="font-heading text-lg font-normal text-[#12332a] dark:text-white">
+                      {entry.title}
+                    </h3>
+
+                    <p className="text-xs text-[#5b7970] dark:text-[#8fa7a0] line-clamp-2 leading-relaxed">
+                      {entry.content}
                     </p>
 
-                    <div className="flex items-center justify-between pt-2 border-t border-[var(--color-surface-border)]/60 text-[10px] text-[var(--color-on-surface-variant)]">
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="w-3 h-3 text-[var(--color-gold)]" />
-                        <span>{dateStr}</span>
-                      </div>
-
-                      <div className="flex items-center gap-1">
-                        {item.tags?.slice(0, 3).map((t) => (
-                          <span key={t} className="px-1.5 py-0.5 rounded bg-[var(--color-surface-variant)]">
+                    {entry.tags && entry.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {entry.tags.map((t) => (
+                          <span
+                            key={t}
+                            className="px-2 py-0.5 rounded-md text-[10px] bg-[#f2f7f5] dark:bg-white/5 text-[#8fa7a0]"
+                          >
                             #{t}
                           </span>
                         ))}
                       </div>
-                    </div>
+                    )}
                   </div>
                 );
               })}
             </div>
           )}
-
-          {/* Floating Action Button (FAB) - 56px circle */}
-          <button
-            onClick={startNewEntry}
-            aria-label="New Journal Entry"
-            className="fixed bottom-24 right-6 w-14 h-14 rounded-full bg-[var(--color-primary)] hover:bg-[var(--color-primary-light)] text-white shadow-xl flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-90 z-30"
-          >
-            <Plus className="w-6 h-6 stroke-[2.5]" />
-          </button>
         </div>
       )}
     </div>

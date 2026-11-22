@@ -1,5 +1,11 @@
 import React from 'react';
-import { Home, Image as GalleryIcon, Feather, Bell, Grid2X2 } from 'lucide-react';
+import {
+  HomeIcon as Home,
+  ImageIcon as GalleryIcon,
+  FeatherIcon as Feather,
+  BellIcon as Bell,
+  GridIcon as Grid2X2,
+} from './icons';
 
 export type NavTab = 'home' | 'vault' | 'journal' | 'reminders';
 

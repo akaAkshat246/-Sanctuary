@@ -240,10 +240,23 @@ export const Database = {
     try {
       const res = await db.query('SELECT * FROM reminders ORDER BY dueDate ASC;');
       if (!res.values) return [];
-      return res.values.map(v => ({
-        ...v,
-        completed: Boolean(v.completed)
-      })) as ReminderItem[];
+      return res.values.map(v => {
+        let date = v.date || '';
+        let time = v.time || '09:00';
+        if (v.dueDate) {
+          const parts = v.dueDate.includes('T') ? v.dueDate.split('T') : v.dueDate.split(' ');
+          date = parts[0] || v.dueDate;
+          time = (parts[1] || '09:00').slice(0, 5);
+        }
+        return {
+          id: v.id,
+          title: v.title,
+          date,
+          time,
+          completed: Boolean(v.completed),
+          createdAt: v.createdAt || new Date().toISOString()
+        };
+      }) as ReminderItem[];
     } catch (e) {
       console.error('SQLite getReminders error:', e);
       return null;
@@ -261,9 +274,9 @@ export const Database = {
       await db.run(sql, [
         reminder.id,
         reminder.title,
-        reminder.description || null,
-        reminder.dueDate,
-        reminder.priority,
+        reminder.time,
+        `${reminder.date} ${reminder.time}`,
+        'normal',
         reminder.completed ? 1 : 0,
         reminder.createdAt
       ]);
@@ -304,7 +317,13 @@ export const Database = {
     if (!db) return null;
     try {
       const res = await db.query('SELECT * FROM moods ORDER BY date DESC LIMIT 30;');
-      return (res.values || []) as MoodLog[];
+      return (res.values || []).map((v) => ({
+        id: v.id,
+        date: v.date,
+        mood: (v.label || v.mood || 'Calm') as any,
+        note: v.note || undefined,
+        createdAt: v.createdAt || new Date().toISOString(),
+      }));
     } catch (e) {
       console.error('SQLite getMoods error:', e);
       return null;
@@ -319,7 +338,7 @@ export const Database = {
         INSERT OR REPLACE INTO moods (id, date, score, label, note, createdAt)
         VALUES (?, ?, ?, ?, ?, ?);
       `;
-      await db.run(sql, [log.id, log.date, log.score, log.label, log.note || null, log.createdAt]);
+      await db.run(sql, [log.id, log.date, 5, log.mood, log.note || null, log.createdAt]);
       return true;
     } catch (e) {
       console.error('SQLite saveMood error:', e);

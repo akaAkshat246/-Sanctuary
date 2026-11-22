@@ -1,342 +1,356 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Plus, Check, Trash2, Calendar, AlertCircle, Clock, X } from 'lucide-react';
-import type { ReminderItem, PriorityLevel } from '../types';
+import React, { useState, useMemo } from 'react';
+import {
+  PlusIcon as Plus,
+  CheckIcon as Check,
+  TrashIcon as Trash2,
+  ChevronLeftIcon as ChevronLeft,
+  ChevronRightIcon as ChevronRight,
+  CloseIcon as X,
+  BellIcon as Bell,
+} from '../components/icons';
+import type { ReminderItem } from '../types';
 import { Storage } from '../lib/storage';
+import { hapticLight, hapticMedium, hapticSuccess, hapticSelection } from '../lib/haptics';
 
 interface RemindersScreenProps {
   reminders: ReminderItem[];
   onRefresh: () => void;
+  showToast?: (text: string, type?: 'success' | 'info' | 'error') => void;
 }
 
-export const RemindersScreen: React.FC<RemindersScreenProps> = ({
-  reminders,
-  onRefresh,
-}) => {
+export const RemindersScreen: React.FC<RemindersScreenProps> = ({ reminders, onRefresh, showToast }) => {
+  const [calendarDate, setCalendarDate] = useState(() => new Date());
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+
+  // Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingReminder, setEditingReminder] = useState<ReminderItem | null>(null);
+  const [reminderTitle, setReminderTitle] = useState('');
+  const [reminderDate, setReminderDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [reminderTime, setReminderTime] = useState('09:00');
 
-  // Form states
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [priority, setPriority] = useState<PriorityLevel>('medium');
-
-  // Track reference timestamp for overdue checks
-  const [currentTime, setCurrentTime] = useState(() => Date.now());
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 60000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const openAddModal = () => {
-    setTitle('');
-    setDescription('');
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(10, 0, 0, 0);
-    setDueDate(tomorrow.toISOString().slice(0, 16));
-    setPriority('medium');
-    setEditingReminder(null);
-    setIsModalOpen(true);
+  const prevMonth = () => {
+    hapticSelection();
+    setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1));
   };
 
-  const openEditModal = (r: ReminderItem) => {
-    setTitle(r.title);
-    setDescription(r.description || '');
-    setDueDate(r.dueDate ? r.dueDate.slice(0, 16) : '');
-    setPriority(r.priority);
-    setEditingReminder(r);
-    setIsModalOpen(true);
+  const nextMonth = () => {
+    hapticSelection();
+    setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 1));
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const monthName = calendarDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  // Compute calendar grid
+  const calendarGrid = useMemo(() => {
+    const year = calendarDate.getFullYear();
+    const month = calendarDate.getMonth();
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    const days: Array<{ dayNumber: number; dateString: string; isCurrentMonth: boolean }> = [];
+    for (let i = 0; i < firstDayIndex; i++) {
+      days.push({ dayNumber: 0, dateString: '', isCurrentMonth: false });
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      const monthStr = String(month + 1).padStart(2, '0');
+      const dayStr = String(d).padStart(2, '0');
+      days.push({ dayNumber: d, dateString: `${year}-${monthStr}-${dayStr}`, isCurrentMonth: true });
+    }
+    return days;
+  }, [calendarDate]);
+
+  const datesWithReminders = useMemo(() => {
+    const set = new Set<string>();
+    reminders.forEach((r) => {
+      if (r.date) set.add(r.date);
+    });
+    return set;
+  }, [reminders]);
+
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!reminderTitle.trim()) return;
 
-    const reminder: ReminderItem = {
-      id: editingReminder ? editingReminder.id : `rem_${Date.now()}`,
-      title: title.trim(),
-      description: description.trim() || undefined,
-      dueDate: dueDate || new Date().toISOString(),
-      priority,
-      completed: editingReminder ? editingReminder.completed : false,
-      createdAt: editingReminder ? editingReminder.createdAt : new Date().toISOString(),
+    hapticMedium();
+    const newReminder: ReminderItem = {
+      id: `rem_${Date.now()}`,
+      title: reminderTitle.trim(),
+      date: reminderDate || new Date().toISOString().split('T')[0],
+      time: reminderTime || '09:00',
+      completed: false,
+      createdAt: new Date().toISOString(),
     };
 
-    Storage.saveReminder(reminder);
-    onRefresh();
+    await Storage.saveReminder(newReminder);
     setIsModalOpen(false);
+    setReminderTitle('');
+    onRefresh();
+    hapticSuccess();
+    showToast?.('Reminder created');
   };
 
-  const handleDelete = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    Storage.deleteReminder(id);
+  const handleToggle = async (id: string) => {
+    hapticLight();
+    await Storage.toggleReminderComplete(id);
     onRefresh();
   };
 
-  const handleToggleComplete = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    Storage.toggleReminderComplete(id);
+  const handleDelete = async (id: string) => {
+    hapticMedium();
+    await Storage.deleteReminder(id);
     onRefresh();
+    showToast?.('Reminder removed', 'info');
   };
 
-  // Sorted list: Overdue first, then pending by date, then completed at bottom
-  const sortedReminders = useMemo(() => {
-    return [...reminders].sort((a, b) => {
-      if (a.completed !== b.completed) return a.completed ? 1 : -1;
-      const aOverdue = !a.completed && Boolean(a.dueDate) && new Date(a.dueDate).getTime() < currentTime;
-      const bOverdue = !b.completed && Boolean(b.dueDate) && new Date(b.dueDate).getTime() < currentTime;
-      if (aOverdue && !bOverdue) return -1;
-      if (!aOverdue && bOverdue) return 1;
-      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-    });
-  }, [reminders, currentTime]);
+  const todayStr = new Date().toISOString().split('T')[0];
 
-  const isOverdue = (r: ReminderItem) => {
-    return !r.completed && Boolean(r.dueDate) && new Date(r.dueDate).getTime() < currentTime;
-  };
-
-  // Stats calculation
-  const total = reminders.length;
-  const pending = reminders.filter((r) => !r.completed).length;
-  const done = reminders.filter((r) => r.completed).length;
-  const overdueCount = reminders.filter(isOverdue).length;
-
-  const getPriorityColor = (p: PriorityLevel) => {
-    switch (p) {
-      case 'high': return 'text-rose-500 bg-rose-500/10 border-rose-500/30';
-      case 'medium': return 'text-amber-500 bg-amber-500/10 border-amber-500/30';
-      case 'low': return 'text-teal-600 bg-teal-500/10 border-teal-500/30';
+  const displayedReminders = useMemo(() => {
+    if (selectedDay) {
+      return reminders.filter((r) => r.date === selectedDay);
     }
-  };
+    return reminders;
+  }, [reminders, selectedDay]);
 
   return (
-    <div className="space-y-4 pb-24 animate-in fade-in duration-300">
-      {/* Header */}
-      <div className="flex items-center justify-between pt-1">
-        <div>
-          <h2 className="text-xl font-heading font-semibold text-[var(--color-on-surface)]">
-            Reminders & Tasks
-          </h2>
-          <p className="text-xs text-[var(--color-on-surface-variant)]">
-            Peace of mind for your daily intentions
+    <div className="space-y-6 pb-20 animate-in fade-in duration-300 max-w-4xl mx-auto">
+      {/* Top Header Row matching Image 5 */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-heading font-normal tracking-tight text-[#12332a] dark:text-white">
+            Reminders
+          </h1>
+          <p className="text-xs text-[#5b7970] dark:text-[#8fa7a0] italic">
+            Gentle nudges for your mindful journey.
           </p>
         </div>
+
+        <button
+          onClick={() => {
+            setReminderTitle('');
+            setIsModalOpen(true);
+          }}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#082a20] hover:bg-[#0c382b] text-white text-xs font-semibold shadow-xs transition active:scale-[0.98] self-start sm:self-auto"
+        >
+          <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+          <span>Add New</span>
+        </button>
       </div>
 
-      {/* Stats Header Bar */}
-      <div className="grid grid-cols-4 gap-2 p-3 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-surface-border)] text-center shadow-xs">
-        <div>
-          <div className="text-base font-bold text-[var(--color-on-surface)]">{total}</div>
-          <div className="text-[10px] text-[var(--color-on-surface-variant)]">Total</div>
-        </div>
-        <div>
-          <div className="text-base font-bold text-amber-500">{pending}</div>
-          <div className="text-[10px] text-[var(--color-on-surface-variant)]">Pending</div>
-        </div>
-        <div>
-          <div className="text-base font-bold text-teal-600">{done}</div>
-          <div className="text-[10px] text-[var(--color-on-surface-variant)]">Done</div>
-        </div>
-        <div>
-          <div className={`text-base font-bold ${overdueCount > 0 ? 'text-rose-500' : 'text-[var(--color-on-surface)]'}`}>
-            {overdueCount}
-          </div>
-          <div className="text-[10px] text-[var(--color-on-surface-variant)]">Overdue</div>
-        </div>
-      </div>
-
-      {/* Reminders List */}
-      {sortedReminders.length === 0 ? (
-        <div className="p-8 text-center rounded-3xl bg-[var(--color-surface)] border border-[var(--color-surface-border)] space-y-3">
-          <div className="w-12 h-12 mx-auto rounded-full bg-teal-500/10 text-[var(--color-primary)] flex items-center justify-center">
-            <Clock className="w-6 h-6" />
-          </div>
-          <h3 className="font-heading font-semibold text-base text-[var(--color-on-surface)]">
-            No active reminders
+      {/* Large Calendar Card matching Image 5 */}
+      <div className="rounded-[28px] p-6 sm:p-8 bg-white dark:bg-white/5 border border-[#dce9e3] dark:border-white/10 shadow-xs space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="font-heading text-lg font-semibold text-[#12332a] dark:text-white tracking-wide">
+            {monthName}
           </h3>
-          <p className="text-xs text-[var(--color-on-surface-variant)] max-w-xs mx-auto">
-            Your schedule is completely clear. Add a mindful reminder whenever you're ready.
-          </p>
+          <div className="flex items-center gap-1 text-[#8fa7a0]">
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="p-1.5 hover:text-black dark:hover:text-white transition"
+              title="Add reminder"
+            >
+              <Plus className="w-4 h-4 stroke-[2]" />
+            </button>
+            <button
+              onClick={prevMonth}
+              className="p-1.5 hover:text-black dark:hover:text-white transition"
+              title="Previous month"
+            >
+              <ChevronLeft className="w-4 h-4 stroke-[2]" />
+            </button>
+            <button
+              onClick={nextMonth}
+              className="p-1.5 hover:text-black dark:hover:text-white transition"
+              title="Next month"
+            >
+              <ChevronRight className="w-4 h-4 stroke-[2]" />
+            </button>
+          </div>
+        </div>
+
+        {/* Weekday Labels: S M T W T F S matching Image 5 */}
+        <div className="grid grid-cols-7 text-center text-xs font-normal text-[#8fa7a0]">
+          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, idx) => (
+            <div key={idx}>{day}</div>
+          ))}
+        </div>
+
+        {/* Days Grid matching Image 5 */}
+        <div className="grid grid-cols-7 gap-y-3 text-center text-xs sm:text-sm">
+          {calendarGrid.map((cell, idx) => {
+            if (!cell.isCurrentMonth) {
+              return <div key={idx} className="h-10" />;
+            }
+
+            const isToday = cell.dateString === todayStr;
+            const hasReminder = datesWithReminders.has(cell.dateString);
+            const isSelected = selectedDay === cell.dateString;
+
+            return (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => setSelectedDay((prev) => (prev === cell.dateString ? null : cell.dateString))}
+                className={`h-10 flex flex-col items-center justify-center rounded-xl transition ${
+                  isSelected
+                    ? 'bg-[#082a20] text-white font-bold'
+                    : isToday
+                    ? 'text-[#12332a] dark:text-white font-bold'
+                    : 'text-[#5b7970] dark:text-[#8fa7a0] hover:bg-black/5 dark:hover:bg-white/5'
+                }`}
+              >
+                <span>{cell.dayNumber}</span>
+                {hasReminder && (
+                  <span
+                    className={`w-1 h-1 rounded-full ${
+                      isSelected ? 'bg-white' : 'bg-[#082a20] dark:bg-teal-400'
+                    }`}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Reminders List or Bell Icon matching Frame 138s */}
+      {displayedReminders.length === 0 ? (
+        <div className="flex flex-col items-center justify-center text-center py-12 text-[#8fa7a0] opacity-40">
+          <Bell className="w-8 h-8 stroke-[1.5]" />
         </div>
       ) : (
-        <div className="space-y-2.5">
-          {sortedReminders.map((r) => {
-            const overdue = isOverdue(r);
-            const dateObj = new Date(r.dueDate);
-            const dateFormatted = dateObj.toLocaleDateString(undefined, {
-              month: 'short',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            });
-
+        <div className="space-y-3">
+          {displayedReminders.map((r) => {
+            const isPast = r.date < todayStr;
             return (
               <div
                 key={r.id}
-                onClick={() => openEditModal(r)}
-                className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start justify-between gap-3 ${
-                  r.completed
-                    ? 'bg-[var(--color-surface)]/60 border-[var(--color-surface-border)]/50 opacity-60'
-                    : overdue
-                    ? 'bg-rose-500/5 border-rose-500/40 hover:bg-rose-500/10'
-                    : 'bg-[var(--color-surface)] border-[var(--color-surface-border)] hover:border-teal-500/40 shadow-xs'
-                }`}
+                className="p-4 rounded-2xl bg-[#fbfdfc] dark:bg-white/5 border border-[#dce9e3] dark:border-white/10 shadow-xs flex items-center justify-between gap-3"
               >
-                {/* Complete checkbox */}
-                <button
-                  onClick={(e) => handleToggleComplete(e, r.id)}
-                  className={`mt-0.5 w-6 h-6 rounded-full border flex items-center justify-center shrink-0 transition-all ${
-                    r.completed
-                      ? 'bg-teal-600 border-teal-600 text-white'
-                      : 'border-[var(--color-surface-border)] hover:border-teal-500 text-transparent'
-                  }`}
-                  aria-label="Toggle Complete"
-                >
-                  <Check className="w-3.5 h-3.5 stroke-[3]" />
-                </button>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h4
-                      className={`text-xs font-semibold text-[var(--color-on-surface)] truncate ${
-                        r.completed ? 'line-through text-[var(--color-on-surface-variant)]' : ''
+                <div className="flex items-center gap-3 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => handleToggle(r.id)}
+                    className={`w-5 h-5 rounded-full border flex items-center justify-center transition ${
+                      r.completed
+                        ? 'bg-[#0d2e26] border-[#0d2e26] text-white'
+                        : 'border-gray-300 dark:border-white/20'
+                    }`}
+                  >
+                    {r.completed && <Check className="w-3 h-3 stroke-[3]" />}
+                  </button>
+                  <div className="min-w-0">
+                    <p
+                      className={`text-xs font-medium truncate ${
+                        r.completed
+                          ? 'line-through text-gray-400'
+                          : 'text-[#12332a] dark:text-white'
                       }`}
                     >
                       {r.title}
-                    </h4>
-                    {overdue && (
-                      <span className="px-1.5 py-0.2 rounded-md bg-rose-500/20 text-rose-600 text-[9px] font-bold uppercase tracking-wider flex items-center gap-0.5">
-                        <AlertCircle className="w-2.5 h-2.5" /> Overdue
-                      </span>
-                    )}
-                  </div>
-
-                  {r.description && (
-                    <p className="text-[11px] text-[var(--color-on-surface-variant)] line-clamp-1 mt-0.5">
-                      {r.description}
                     </p>
-                  )}
-
-                  <div className="flex items-center gap-2 mt-1.5 text-[10px] text-[var(--color-on-surface-variant)]">
-                    <span className={`px-1.5 py-0.5 rounded border uppercase text-[8px] font-bold ${getPriorityColor(r.priority)}`}>
-                      {r.priority}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-[var(--color-gold)]" />
-                      {dateFormatted}
+                    <span className="text-[10px] text-[#8fa7a0]">
+                      {r.date} · {r.time}
                     </span>
                   </div>
                 </div>
 
-                {/* Delete button */}
-                <button
-                  onClick={(e) => handleDelete(e, r.id)}
-                  className="p-1.5 rounded-lg text-[var(--color-on-surface-variant)] hover:text-rose-500 transition-colors"
-                  aria-label="Delete Reminder"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {isPast && !r.completed && (
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                      OVERDUE
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(r.id)}
+                    className="p-1 text-gray-400 hover:text-rose-500 transition"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             );
           })}
         </div>
       )}
 
-      {/* FAB (Icon only, 56px circle) */}
-      <button
-        onClick={openAddModal}
-        aria-label="Add Reminder"
-        className="fixed bottom-24 right-6 w-14 h-14 rounded-full bg-[var(--color-primary)] hover:bg-[var(--color-primary-light)] text-white shadow-xl flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-90 z-30"
-      >
-        <Plus className="w-6 h-6 stroke-[2.5]" />
-      </button>
-
-      {/* Add / Edit Modal */}
+      {/* New Reminder Modal matching Frame 147s */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
-          <div className="absolute inset-0" onClick={() => setIsModalOpen(false)} />
-
-          <div className="relative w-full max-w-md bg-[var(--color-surface)] border border-[var(--color-surface-border)] rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl z-10 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[var(--color-surface-border)]">
-              <h3 className="font-heading font-semibold text-base text-[var(--color-on-surface)]">
-                {editingReminder ? 'Edit Reminder' : 'New Reminder'}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-150">
+          <div className="relative w-full max-w-sm bg-[#fbfdfc] dark:bg-[#0c1e19] border border-[#dce9e3] dark:border-white/10 rounded-[28px] p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-heading text-lg text-[#12332a] dark:text-white">
+                New Reminder
               </h3>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="p-1 rounded-full text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-variant)]"
+                className="p-1 rounded-full text-gray-400 hover:text-black dark:hover:text-white"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSave} className="space-y-3.5">
-              <div>
-                <label className="block text-xs font-medium text-[var(--color-on-surface-variant)] mb-1">
-                  Title
+            <form onSubmit={handleCreate} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-[#8fa7a0]">
+                  WHAT TO REMEMBER?
                 </label>
                 <input
                   type="text"
+                  value={reminderTitle}
+                  onChange={(e) => setReminderTitle(e.target.value)}
+                  placeholder="e.g. Evening stillness, Drink water..."
                   required
-                  placeholder="What would you like to remember?"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--color-surface-variant)]/60 border border-[var(--color-surface-border)] text-xs text-[var(--color-on-surface)] focus:outline-none focus:ring-2 focus:ring-teal-500/30"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-[var(--color-on-surface-variant)] mb-1">
-                  Note (Optional)
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Additional context..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--color-surface-variant)]/60 border border-[var(--color-surface-border)] text-xs text-[var(--color-on-surface)] focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                  autoFocus
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-white/10 text-xs bg-transparent text-[#12332a] dark:text-white focus:outline-none focus:border-[#0d2e26]"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-[var(--color-on-surface-variant)] mb-1">
-                    Due Date & Time
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-[#8fa7a0]">
+                    DATE
                   </label>
-                  <input
-                    type="datetime-local"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[var(--color-surface-variant)]/60 border border-[var(--color-surface-border)] text-xs text-[var(--color-on-surface)] focus:outline-none focus:ring-2 focus:ring-teal-500/30"
-                  />
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={reminderDate}
+                      onChange={(e) => setReminderDate(e.target.value)}
+                      required
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-white/10 text-xs bg-transparent text-[#12332a] dark:text-white focus:outline-none"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-[var(--color-on-surface-variant)] mb-1">
-                    Priority
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-[#8fa7a0]">
+                    TIME
                   </label>
-                  <select
-                    value={priority}
-                    onChange={(e) => setPriority(e.target.value as PriorityLevel)}
-                    className="w-full px-3 py-2 rounded-xl bg-[var(--color-surface-variant)]/60 border border-[var(--color-surface-border)] text-xs text-[var(--color-on-surface)] focus:outline-none focus:ring-2 focus:ring-teal-500/30"
-                  >
-                    <option value="low">Low (Teal)</option>
-                    <option value="medium">Medium (Gold)</option>
-                    <option value="high">High (Red)</option>
-                  </select>
+                  <div className="relative">
+                    <input
+                      type="time"
+                      value={reminderTime}
+                      onChange={(e) => setReminderTime(e.target.value)}
+                      required
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-white/10 text-xs bg-transparent text-[#12332a] dark:text-white focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="pt-2">
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-gray-100 dark:bg-white/10 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-200 transition"
+                >
+                  Cancel
+                </button>
                 <button
                   type="submit"
-                  className="w-full py-2.5 rounded-xl bg-[var(--color-primary)] hover:bg-[var(--color-primary-light)] text-white text-xs font-semibold shadow-sm transition-all active:scale-98"
+                  className="flex-1 py-2.5 rounded-xl bg-[#0d2e26] hover:bg-[#15463a] text-white text-xs font-medium shadow-xs transition active:scale-[0.98]"
                 >
-                  {editingReminder ? 'Update Reminder' : 'Create Reminder'}
+                  Create
                 </button>
               </div>
             </form>

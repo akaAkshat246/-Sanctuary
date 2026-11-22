@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sun, Moon } from 'lucide-react';
+import { SunIcon as Sun, MoonIcon as Moon } from './icons';
 import { Storage } from '../lib/storage';
 
 export const ThemeToggle: React.FC<{ className?: string }> = ({ className = '' }) => {

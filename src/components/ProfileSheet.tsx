@@ -1,5 +1,11 @@
 import React, { useState } from 'react';
-import { X, User, Check, Calendar, Heart } from 'lucide-react';
+import {
+  CloseIcon as X,
+  UserIcon as User,
+  CheckIcon as Check,
+  CalendarIcon as Calendar,
+  HeartIcon as Heart,
+} from './icons';
 import type { UserProfile, Gender } from '../types';
 import { Storage } from '../lib/storage';
 

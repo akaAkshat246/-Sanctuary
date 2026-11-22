@@ -1,150 +1,246 @@
-import React, { useState, useMemo } from 'react';
-import { Tag as TagIcon, X } from 'lucide-react';
-import type { JournalEntry } from '../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { PlusIcon as Plus, TrashIcon as Trash2, CloseIcon as X } from '../components/icons';
+import type { JournalEntry, TagItem } from '../types';
+import { Storage } from '../lib/storage';
 
 interface TagsScreenProps {
   entries: JournalEntry[];
   onOpenJournal: (id: string) => void;
-  onBack: () => void;
 }
 
-const PRESET_COLORS = [
-  '#1a4a4a', // Deep Teal
-  '#c9a84c', // Gold
-  '#e06c75', // Rose
-  '#61afef', // Sky Blue
-  '#98c379', // Sage Green
-  '#c678dd', // Lavender
-  '#d19a66', // Terracotta
-  '#56b6c2', // Aqua
+const SWATCH_COLORS = [
+  '#0d2e26', // Forest Green
+  '#8c6828', // Gold / Amber
+  '#3b82f6', // Blue
+  '#8b5cf6', // Purple
+  '#ef4444', // Red
+  '#22c55e', // Bright Green
+  '#f59e0b', // Orange
+  '#14b8a6', // Teal
 ];
 
-export const TagsScreen: React.FC<TagsScreenProps> = ({
-  entries,
-  onOpenJournal,
-  onBack,
-}) => {
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+export const TagsScreen: React.FC<TagsScreenProps> = ({ entries, onOpenJournal }) => {
+  const [tags, setTags] = useState<TagItem[]>(() => Storage.getTags());
+  const [selectedTag, setSelectedTag] = useState<TagItem | null>(null);
 
-  // Aggregate all tags from entries
+  // Create Tag Modal
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [tagName, setTagName] = useState('');
+  const [tagColor, setTagColor] = useState(SWATCH_COLORS[0]);
+
+  const refreshTags = () => {
+    const list = Storage.getTags();
+    setTags(list);
+    if (selectedTag) {
+      const refreshed = list.find((t) => t.id === selectedTag.id);
+      setSelectedTag(refreshed || null);
+    }
+  };
+
+  useEffect(() => {
+    refreshTags();
+  }, []);
+
   const tagCounts = useMemo(() => {
     const map: Record<string, number> = {};
     entries.forEach((e) => {
       e.tags?.forEach((t) => {
         const clean = t.toLowerCase().trim();
-        if (clean) {
-          map[clean] = (map[clean] || 0) + 1;
-        }
+        if (clean) map[clean] = (map[clean] || 0) + 1;
       });
     });
     return map;
   }, [entries]);
 
-  const allTags = Object.keys(tagCounts);
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = tagName.trim();
+    if (!clean) return;
 
-  // Filter entries if a tag is selected
-  const filteredEntries = useMemo(() => {
+    const newTag: TagItem = {
+      id: `tag_${Date.now()}`,
+      name: clean,
+      color: tagColor,
+      createdAt: new Date().toISOString(),
+    };
+
+    await Storage.saveTag(newTag);
+    setTagName('');
+    setIsModalOpen(false);
+    refreshTags();
+  };
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await Storage.deleteTag(id);
+    if (selectedTag?.id === id) setSelectedTag(null);
+    refreshTags();
+  };
+
+  const activeTagEntries = useMemo(() => {
     if (!selectedTag) return [];
-    return entries.filter((e) =>
-      e.tags?.some((t) => t.toLowerCase().trim() === selectedTag.toLowerCase())
-    );
+    const q = selectedTag.name.toLowerCase();
+    return entries.filter((e) => e.tags?.some((t) => t.toLowerCase().trim() === q));
   }, [entries, selectedTag]);
 
   return (
-    <div className="space-y-4 pb-24 animate-in fade-in duration-300">
+    <div className="space-y-6 pb-20 animate-in fade-in duration-300 max-w-4xl mx-auto">
+      {/* Top Header Row matching Frame 156s */}
       <div className="flex items-center justify-between pt-1">
-        <div>
-          <button
-            onClick={onBack}
-            className="text-xs text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)] flex items-center gap-1 mb-1"
-          >
-            ← Back to Sanctuary
-          </button>
-          <h2 className="text-xl font-heading font-semibold text-[var(--color-on-surface)] flex items-center gap-2">
-            <TagIcon className="w-5 h-5 text-[var(--color-gold)]" /> Sanctuary Tags
-          </h2>
-        </div>
+        <h1 className="text-3xl font-heading font-normal tracking-tight text-[#12332a] dark:text-white">
+          Tags
+        </h1>
+
+        <button
+          onClick={() => {
+            setTagName('');
+            setIsModalOpen(true);
+          }}
+          className="w-8 h-8 rounded-full bg-[#0d2e26] hover:bg-[#15463a] text-white flex items-center justify-center shadow-xs transition active:scale-95"
+          title="Create tag"
+          aria-label="Create tag"
+        >
+          <Plus className="w-4 h-4" />
+        </button>
       </div>
 
-      {/* Selected Tag Filter Banner */}
-      {selectedTag ? (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-surface-border)]">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-[var(--color-primary)] bg-teal-500/15 px-2.5 py-1 rounded-full border border-teal-500/20">
-                #{selectedTag}
-              </span>
-              <span className="text-xs text-[var(--color-on-surface-variant)]">
-                ({filteredEntries.length} entries)
-              </span>
-            </div>
-            <button
-              onClick={() => setSelectedTag(null)}
-              className="text-xs text-[var(--color-on-surface-variant)] hover:text-rose-500 flex items-center gap-1"
-            >
-              <X className="w-4 h-4" /> Clear Filter
-            </button>
-          </div>
-
-          <div className="space-y-2.5">
-            {filteredEntries.map((e) => (
-              <div
-                key={e.id}
-                onClick={() => onOpenJournal(e.id)}
-                className="p-3.5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-surface-border)] hover:border-teal-500/40 cursor-pointer transition-all shadow-xs"
-              >
-                <h4 className="text-xs font-semibold text-[var(--color-on-surface)]">{e.title}</h4>
-                <p className="text-xs text-[var(--color-on-surface-variant)] line-clamp-2 mt-1">
-                  {e.content}
-                </p>
-              </div>
-            ))}
-          </div>
+      {/* Tags Cards or Empty State matching Frame 156s */}
+      {tags.length === 0 ? (
+        <div className="rounded-[28px] p-8 bg-[#fbfdfc] dark:bg-white/5 border border-[#dce9e3] dark:border-white/10 shadow-xs text-center">
+          <p className="text-xs text-[#5b7970] dark:text-[#8fa7a0]">
+            No tags yet. Create your first tag to organize your thoughts.
+          </p>
         </div>
       ) : (
-        /* Tag Cloud Grid */
-        <div className="space-y-3">
-          <p className="text-xs text-[var(--color-on-surface-variant)]">
-            Tags organize your thoughts, dreams, and memories. Tap any tag to explore matching writings.
-          </p>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {tags.map((t) => {
+              const count = tagCounts[t.name.toLowerCase()] || 0;
+              const isSelected = selectedTag?.id === t.id;
 
-          {allTags.length === 0 ? (
-            <div className="p-8 text-center rounded-3xl bg-[var(--color-surface)] border border-[var(--color-surface-border)] space-y-2">
-              <TagIcon className="w-10 h-10 text-[var(--color-gold)] mx-auto opacity-70" />
-              <h4 className="font-heading font-semibold text-sm text-[var(--color-on-surface)]">
-                No tags created yet
-              </h4>
-              <p className="text-xs text-[var(--color-on-surface-variant)] max-w-xs mx-auto">
-                When you write journal entries, add tags like <i>#solitude</i>, <i>#books</i>, or <i>#ideas</i> to see them grouped here.
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-2 pt-2">
-              {allTags.map((t, idx) => {
-                const color = PRESET_COLORS[idx % PRESET_COLORS.length];
-                const count = tagCounts[t];
-
-                return (
-                  <button
-                    key={t}
-                    onClick={() => setSelectedTag(t)}
-                    className="p-2.5 px-3.5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-surface-border)] hover:scale-105 active:scale-95 transition-all flex items-center gap-2 shadow-xs group"
-                  >
+              return (
+                <div
+                  key={t.id}
+                  onClick={() => setSelectedTag((prev) => (prev?.id === t.id ? null : t))}
+                  className={`p-4 rounded-2xl bg-[#fbfdfc] dark:bg-white/5 border transition cursor-pointer shadow-xs flex flex-col justify-between space-y-3 ${
+                    isSelected
+                      ? 'border-[#0d2e26] dark:border-white'
+                      : 'border-[#dce9e3] dark:border-white/10 hover:border-[#12332a]/30'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
                     <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: color }}
+                      className="w-2.5 h-2.5 rounded-full inline-block"
+                      style={{ backgroundColor: t.color || '#0d2e26' }}
                     />
-                    <span className="text-xs font-medium text-[var(--color-on-surface)] group-hover:text-[var(--color-primary)]">
-                      #{t}
+                    <span className="text-xs font-medium text-[#12332a] dark:text-white">
+                      {t.name}
                     </span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-surface-variant)] text-[var(--color-on-surface-variant)]">
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
+                    <span className="text-[11px] text-[#8fa7a0]">({count})</span>
+                  </div>
+
+                  <div>
+                    <button
+                      type="button"
+                      onClick={(e) => handleDelete(t.id, e)}
+                      className="text-rose-500 hover:text-rose-600 p-0.5 transition"
+                      title="Delete tag"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Section: ENTRIES TAGGED "NAME" matching Frame 168s */}
+          {selectedTag && (
+            <div className="space-y-3 pt-2 animate-in fade-in">
+              <h4 className="text-[10px] font-semibold uppercase tracking-wider text-[#8fa7a0]">
+                ENTRIES TAGGED "{selectedTag.name.toUpperCase()}"
+              </h4>
+
+              {activeTagEntries.length === 0 ? (
+                <div className="rounded-2xl p-6 bg-[#fbfdfc] dark:bg-white/5 border border-[#dce9e3] dark:border-white/10 shadow-xs">
+                  <p className="text-xs text-[#8fa7a0]">No entries found for this tag.</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {activeTagEntries.map((e) => (
+                    <div
+                      key={e.id}
+                      onClick={() => onOpenJournal(e.id)}
+                      className="p-4 rounded-2xl bg-[#fbfdfc] dark:bg-white/5 border border-[#dce9e3] dark:border-white/10 shadow-xs hover:border-[#12332a]/30 cursor-pointer transition space-y-1"
+                    >
+                      <h5 className="text-xs font-semibold text-[#12332a] dark:text-white">
+                        {e.title}
+                      </h5>
+                      <p className="text-xs text-[#5b7970] dark:text-[#8fa7a0] line-clamp-1">
+                        {e.content}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Create Tag Modal matching Frame 159s */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-150">
+          <div className="relative w-full max-w-sm bg-[#fbfdfc] dark:bg-[#0c1e19] border border-[#dce9e3] dark:border-white/10 rounded-[28px] p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between">
+              <h3 className="font-heading text-lg text-[#12332a] dark:text-white">
+                Create tag
+              </h3>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="w-7 h-7 rounded-full bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-white flex items-center justify-center hover:bg-gray-200 transition"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreate} className="space-y-4">
+              <input
+                type="text"
+                value={tagName}
+                onChange={(e) => setTagName(e.target.value)}
+                placeholder="Tag name"
+                required
+                autoFocus
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-white/10 text-xs bg-transparent text-[#12332a] dark:text-white focus:outline-none focus:border-[#0d2e26]"
+              />
+
+              {/* 8 Circular Color Swatches matching Frame 159s */}
+              <div className="flex items-center justify-between gap-1.5 py-1">
+                {SWATCH_COLORS.map((color) => {
+                  const isSelected = tagColor === color;
+                  return (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setTagColor(color)}
+                      className={`w-7 h-7 rounded-full transition transform active:scale-90 ${
+                        isSelected ? 'ring-2 ring-offset-2 ring-gray-400' : ''
+                      }`}
+                      style={{ backgroundColor: color }}
+                    />
+                  );
+                })}
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 rounded-xl bg-[#0d2e26] hover:bg-[#15463a] text-white text-xs font-medium shadow-xs transition active:scale-[0.98]"
+              >
+                Create Tag
+              </button>
+            </form>
+          </div>
         </div>
       )}
     </div>

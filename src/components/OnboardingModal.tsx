@@ -1,7 +1,14 @@
 import React, { useState } from 'react';
 import {
-  Sparkles, Heart, ShieldCheck, ChevronRight, Check, Compass, HardDrive, BookOpen
-} from 'lucide-react';
+  MindfulStarIcon as Sparkles,
+  HeartIcon as Heart,
+  ShieldCheckIcon as ShieldCheck,
+  ChevronRightIcon as ChevronRight,
+  CheckIcon as Check,
+  MapIcon as Compass,
+  DatabaseIcon as HardDrive,
+  BookOpenIcon as BookOpen,
+} from './icons';
 import type { UserProfile, Gender } from '../types';
 import { Storage } from '../lib/storage';
 
@@ -58,6 +65,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
       birthday,
       avatar: '🐱',
       theme: 'light',
+      fontSize: 'default',
       hasCompletedOnboarding: true,
       createdAt: new Date().toISOString(),
     };

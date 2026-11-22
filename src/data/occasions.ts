@@ -14,7 +14,7 @@ export const OCCASIONS: OccasionInfo[] = [
   { date: '11/02', title: 'Promise Day', message: 'Promise yourself never to abandon your own sanctuary.', emoji: '🤞' },
   { date: '12/02', title: 'Hug Day', message: 'A warm, safe embrace for your spirit. You are held and valued.', emoji: '🫂' },
   { date: '13/02', title: 'Kiss Day', message: 'A tender touch of kindness for every battle you fought in silence.', emoji: '💋' },
-  { date: '14/02', title: "Valentine's Day", message: 'Celebrating profound love — for art, words, quiet moments, and yourself.', emoji: '❤️' },
+  { date: '14/02', title: "Valentine's Day", message: 'Celebrating profound love - for art, words, quiet moments, and yourself.', emoji: '❤️' },
 
   // Key Milestones & Seasonal Days
   { date: '01/01', title: 'New Year Day', message: 'A fresh, unwritten chapter begins. Welcome to your quiet beginning.', emoji: '✨' },

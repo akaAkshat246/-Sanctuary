@@ -7,6 +7,12 @@ export interface Quote {
 
 export const LITERARY_QUOTES: Quote[] = [
   {
+    id: 0,
+    text: "Pain and suffering are always inevitable for a large intelligence and a deep heart.",
+    author: "FYODOR DOSTOEVSKY",
+    work: "Crime and Punishment"
+  },
+  {
     id: 1,
     text: "You do not need to leave your room. Remain sitting at your table and listen. Do not even listen, simply wait, be quiet, still and solitary. The world will freely offer itself to you to be unmasked, it has no choice, it will roll in ecstasy at your feet.",
     author: "Franz Kafka",

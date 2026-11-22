@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, X, Sparkles } from 'lucide-react';
+import { DownloadIcon as Download, CloseIcon as X, MindfulStarIcon as Sparkles } from './icons';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;

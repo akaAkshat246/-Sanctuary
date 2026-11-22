@@ -1,5 +1,13 @@
 import React from 'react';
-import { X, Tag, Compass, Bookmark, Settings, ShieldCheck, FileText } from 'lucide-react';
+import {
+  CloseIcon as X,
+  TagIcon as Tag,
+  MapIcon as Compass,
+  BookmarkIcon as Bookmark,
+  SettingsIcon as Settings,
+  ShieldCheckIcon as ShieldCheck,
+  FileTextIcon as FileText,
+} from './icons';
 import { ThemeToggle } from './ThemeToggle';
 
 interface MoreDrawerProps {

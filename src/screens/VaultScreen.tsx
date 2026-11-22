@@ -1,447 +1,444 @@
 import React, { useState, useMemo, useRef } from 'react';
 import {
-  Plus, Search, Star, Trash2, X, Download, FileText, Music, Video,
-  Image as ImageIcon, Grid, List
-} from 'lucide-react';
-import type { MemoryItem, MemoryFileType } from '../types';
+  PlusIcon as Plus,
+  TrashIcon as Trash2,
+  UploadTrayIcon,
+  CloseIcon as X,
+  DownloadIcon as Download,
+  MusicNoteIcon,
+  ImageIcon,
+  MindfulStarWithPlusIcon,
+} from '../components/icons';
+import type { MemoryItem, MemoryCategory } from '../types';
 import { Storage } from '../lib/storage';
+import { hapticLight, hapticMedium, hapticSuccess } from '../lib/haptics';
 
 interface VaultScreenProps {
   memories: MemoryItem[];
   onRefresh: () => void;
+  showToast?: (text: string, type?: 'success' | 'info' | 'error') => void;
 }
 
-type FilterCategory = 'all' | 'photos' | 'videos' | 'audio' | 'docs' | 'favourites';
+const CATEGORIES: MemoryCategory[] = ['IMAGE', 'VIDEO', 'AUDIO', 'PDF', 'DOC', 'OTHER'];
 
-export const VaultScreen: React.FC<VaultScreenProps> = ({
-  memories,
-  onRefresh,
-}) => {
-  const [activeFilter, setActiveFilter] = useState<FilterCategory>('all');
+const POETIC_CAPTIONS = [
+  'A fragment of silence preserved in memory.',
+  'Moments dissolve, but the quiet echo of this hour remains.',
+  'The beauty of what once touched the heart never truly fades.',
+  'Held gently in the quiet vault of days gone by.',
+  'A melody and image of inner peace, captured in time.',
+  'Refuge found in the midst of life’s restless stream.',
+];
+
+export const VaultScreen: React.FC<VaultScreenProps> = ({ memories, onRefresh, showToast }) => {
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [previewItem, setPreviewItem] = useState<MemoryItem | null>(null);
+  const [activePreview, setActivePreview] = useState<MemoryItem | null>(null);
+
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newCaption, setNewCaption] = useState('');
+  const [newCategory, setNewCategory] = useState<MemoryCategory>('IMAGE');
+  const [uploadedFile, setUploadedFile] = useState<{
+    url: string;
+    name: string;
+    size: number;
+    mime: string;
+  } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // File type detection
-  const detectFileType = (file: File): MemoryFileType => {
-    if (file.type.startsWith('image/')) return 'image';
-    if (file.type.startsWith('video/')) return 'video';
-    if (file.type.startsWith('audio/')) return 'audio';
-    if (file.type === 'application/pdf') return 'pdf';
-    return 'doc';
+  const detectCategory = (file: File): MemoryCategory => {
+    if (file.type.startsWith('image/')) return 'IMAGE';
+    if (file.type.startsWith('video/')) return 'VIDEO';
+    if (file.type.startsWith('audio/')) return 'AUDIO';
+    if (file.type === 'application/pdf') return 'PDF';
+    if (
+      file.type.includes('word') ||
+      file.type.includes('document') ||
+      file.type.includes('text') ||
+      file.name.endsWith('.doc') ||
+      file.name.endsWith('.docx') ||
+      file.name.endsWith('.txt')
+    ) {
+      return 'DOC';
+    }
+    return 'OTHER';
   };
 
-  // Upload handler
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  const handleFilePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      const detectedType = detectFileType(file);
+    hapticLight();
+    const detected = detectCategory(file);
+    setNewCategory(detected);
+    if (!newTitle) {
+      setNewTitle(file.name);
+    }
 
-      reader.onload = (event) => {
-        const result = event.target?.result as string;
-        const memory: MemoryItem = {
-          id: `mem_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-          title: file.name.replace(/\.[^/.]+$/, ''),
-          type: detectedType,
-          fileUrl: result,
-          fileName: file.name,
-          fileSize: file.size,
-          mimeType: file.type || 'application/octet-stream',
-          isFavourite: false,
-          createdAt: new Date().toISOString(),
-        };
-        Storage.saveMemory(memory);
-        onRefresh();
-      };
-
-      reader.readAsDataURL(file);
-    });
-
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setUploadedFile({
+        url: event.target?.result as string,
+        name: file.name,
+        size: file.size,
+        mime: file.type || 'application/octet-stream',
+      });
+    };
+    reader.readAsDataURL(file);
   };
 
-  // Toggle favourite
-  const handleToggleFav = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    Storage.toggleMemoryFavourite(id);
+  const handleGenerateCaption = () => {
+    hapticLight();
+    const randomCaption = POETIC_CAPTIONS[Math.floor(Math.random() * POETIC_CAPTIONS.length)];
+    setNewCaption(randomCaption);
+  };
+
+  const handleSaveMemory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uploadedFile) return;
+
+    hapticMedium();
+    const memoryItem: MemoryItem = {
+      id: `mem_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      title: newTitle.trim() || uploadedFile.name,
+      type: newCategory,
+      fileUrl: uploadedFile.url,
+      fileName: uploadedFile.name,
+      fileSize: uploadedFile.size,
+      mimeType: uploadedFile.mime,
+      caption: newCaption.trim(),
+      isFavourite: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    await Storage.saveMemory(memoryItem);
+    setIsAddModalOpen(false);
+    setNewTitle('');
+    setNewCaption('');
+    setUploadedFile(null);
     onRefresh();
+    hapticSuccess();
+    showToast?.('Memory saved safely in vault');
   };
 
-  // Delete memory
-  const handleDelete = (e: React.MouseEvent, id: string) => {
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (window.confirm('Delete this memory from your sanctuary?')) {
-      Storage.deleteMemory(id);
-      if (previewItem?.id === id) setPreviewItem(null);
+    if (window.confirm('Delete this memory?')) {
+      await Storage.deleteMemory(id);
+      if (activePreview?.id === id) setActivePreview(null);
       onRefresh();
     }
   };
 
   // Filter memories
   const filteredMemories = useMemo(() => {
-    let result = memories;
+    return memories.filter((m) => {
+      const matchesSearch =
+        m.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        m.fileName.toLowerCase().includes(searchTerm.toLowerCase());
 
-    if (activeFilter === 'photos') result = result.filter((m) => m.type === 'image');
-    else if (activeFilter === 'videos') result = result.filter((m) => m.type === 'video');
-    else if (activeFilter === 'audio') result = result.filter((m) => m.type === 'audio');
-    else if (activeFilter === 'docs') result = result.filter((m) => m.type === 'doc' || m.type === 'pdf');
-    else if (activeFilter === 'favourites') result = result.filter((m) => m.isFavourite);
+      const matchesCategory =
+        selectedCategory === 'ALL' || m.type.toUpperCase() === selectedCategory.toUpperCase();
 
-    if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase();
-      result = result.filter(
-        (m) => m.title.toLowerCase().includes(q) || m.fileName.toLowerCase().includes(q)
-      );
-    }
-
-    return result;
-  }, [memories, activeFilter, searchTerm]);
-
-  // Format file size
-  const formatSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const getBadgeColor = (type: MemoryFileType) => {
-    switch (type) {
-      case 'image': return 'bg-teal-500/15 text-teal-600 border-teal-500/30';
-      case 'video': return 'bg-rose-500/15 text-rose-600 border-rose-500/30';
-      case 'audio': return 'bg-amber-500/15 text-amber-600 border-amber-500/30';
-      case 'pdf': return 'bg-indigo-500/15 text-indigo-600 border-indigo-500/30';
-      default: return 'bg-slate-500/15 text-slate-600 border-slate-500/30';
-    }
-  };
+      return matchesSearch && matchesCategory;
+    });
+  }, [memories, searchTerm, selectedCategory]);
 
   return (
-    <div className="space-y-4 pb-24 overflow-x-hidden animate-in fade-in duration-300">
-      {/* Hidden File Input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
-        className="hidden"
-        onChange={handleFileUpload}
-      />
-
-      {/* Header */}
-      <div className="flex items-center justify-between pt-1">
-        <div>
-          <h2 className="text-xl font-heading font-semibold text-[var(--color-on-surface)]">
+    <div className="space-y-6 pb-20 animate-in fade-in duration-300 max-w-5xl mx-auto">
+      {/* Top Header Row matching Image 3 */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-heading font-normal tracking-tight text-[#12332a] dark:text-white">
             Memory Vault
-          </h2>
-          <p className="text-xs text-[var(--color-on-surface-variant)]">
-            Private, uncompressed, on-device archive
+          </h1>
+          <p className="text-xs text-[#5b7970] dark:text-[#8fa7a0] italic">
+            Your safe space for precious moments.
           </p>
         </div>
 
-        <div className="flex items-center gap-1 bg-[var(--color-surface)] p-1 rounded-xl border border-[var(--color-surface-border)]">
-          <button
-            onClick={() => setViewMode('grid')}
-            className={`p-1.5 rounded-lg transition-colors ${
-              viewMode === 'grid'
-                ? 'bg-teal-500/15 text-[var(--color-primary)]'
-                : 'text-[var(--color-on-surface-variant)]'
-            }`}
-            title="Grid View"
-          >
-            <Grid className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setViewMode('list')}
-            className={`p-1.5 rounded-lg transition-colors ${
-              viewMode === 'list'
-                ? 'bg-teal-500/15 text-[var(--color-primary)]'
-                : 'text-[var(--color-on-surface-variant)]'
-            }`}
-            title="List View"
-          >
-            <List className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Search Input */}
-      <div className="relative">
-        <Search className="w-4 h-4 text-[var(--color-on-surface-variant)] absolute left-3.5 top-3 pointer-events-none" />
-        <input
-          type="text"
-          placeholder="Search saved memories..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-surface-border)] text-xs text-[var(--color-on-surface)] focus:outline-none focus:ring-2 focus:ring-teal-500/30"
-        />
-      </div>
-
-      {/* Filter Chips Bar (No horizontal scroll break) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto py-1 no-scrollbar">
-        {[
-          { id: 'all', label: 'All' },
-          { id: 'photos', label: 'Photos' },
-          { id: 'videos', label: 'Videos' },
-          { id: 'audio', label: 'Audio' },
-          { id: 'docs', label: 'Docs' },
-          { id: 'favourites', label: 'Starred' },
-        ].map((chip) => (
-          <button
-            key={chip.id}
-            onClick={() => setActiveFilter(chip.id as FilterCategory)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
-              activeFilter === chip.id
-                ? 'bg-[var(--color-primary)] text-white shadow-xs'
-                : 'bg-[var(--color-surface)] border border-[var(--color-surface-border)] text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-variant)]'
-            }`}
-          >
-            {chip.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Memories View */}
-      {filteredMemories.length === 0 ? (
-        <div className="p-8 text-center rounded-3xl bg-[var(--color-surface)] border border-[var(--color-surface-border)] space-y-3">
-          <div className="w-12 h-12 mx-auto rounded-full bg-teal-500/10 text-[var(--color-primary)] flex items-center justify-center">
-            <ImageIcon className="w-6 h-6" />
+        {/* Search Bar & Add Button */}
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search memories..."
+              className="pl-4 pr-4 py-2 rounded-xl bg-white dark:bg-white/5 border border-[#dce9e3] dark:border-white/10 text-xs text-[#12332a] dark:text-white placeholder-[#8fa7a0] focus:outline-none shadow-xs w-48 sm:w-64"
+            />
           </div>
-          <h3 className="font-heading font-semibold text-base text-[var(--color-on-surface)]">
-            No memories here yet
-          </h3>
-          <p className="text-xs text-[var(--color-on-surface-variant)] max-w-xs mx-auto">
-            Store photos, family videos, audio recordings, or important documents with full privacy.
-          </p>
+
           <button
-            onClick={() => fileInputRef.current?.click()}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--color-primary)] text-white text-xs font-medium shadow-sm hover:scale-105 active:scale-95 transition-all"
+            onClick={() => {
+              setNewTitle('');
+              setNewCaption('');
+              setUploadedFile(null);
+              setIsAddModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#082a20] hover:bg-[#0c382b] text-white text-xs font-semibold shadow-xs transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#082a20]"
           >
-            <Plus className="w-4 h-4" /> Add First Memory
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>Add Memory</span>
           </button>
         </div>
-      ) : viewMode === 'grid' ? (
-        /* 2-Column Staggered Grid */
-        <div className="grid grid-cols-2 gap-3">
-          {filteredMemories.map((m) => (
-            <div
-              key={m.id}
-              onClick={() => setPreviewItem(m)}
-              className="group relative rounded-2xl bg-[var(--color-surface)] border border-[var(--color-surface-border)] overflow-hidden shadow-xs hover:border-teal-500/40 cursor-pointer transition-all hover:scale-[1.02]"
+      </div>
+
+      {/* Category Filter Pills matching Image 3 */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+        {['ALL', ...CATEGORIES].map((cat) => {
+          const isSelected = selectedCategory === cat;
+          return (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-medium uppercase transition-all ${
+                isSelected
+                  ? 'bg-white dark:bg-white/15 text-[#12332a] dark:text-white font-medium shadow-xs border border-[#dce9e3]/60'
+                  : 'text-[#608075] dark:text-[#8fa7a0] hover:bg-white/40 dark:hover:bg-white/5'
+              }`}
             >
-              {/* Media Preview Thumbnail */}
-              <div className="aspect-square w-full bg-[var(--color-surface-variant)] relative overflow-hidden flex items-center justify-center">
-                {m.type === 'image' ? (
-                  <img
-                    src={m.fileUrl}
-                    alt={m.title}
-                    loading="lazy"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                ) : m.type === 'video' ? (
-                  <div className="flex flex-col items-center justify-center text-rose-500 p-2">
-                    <Video className="w-8 h-8 mb-1" />
-                    <span className="text-[10px] font-semibold">Video</span>
-                  </div>
-                ) : m.type === 'audio' ? (
-                  <div className="flex flex-col items-center justify-center text-amber-500 p-2">
-                    <Music className="w-8 h-8 mb-1" />
-                    <span className="text-[10px] font-semibold">Audio</span>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-indigo-500 p-2">
-                    <FileText className="w-8 h-8 mb-1" />
-                    <span className="text-[10px] font-semibold">Document</span>
-                  </div>
-                )}
+              {cat}
+            </button>
+          );
+        })}
+      </div>
 
-                {/* Badge Overlay */}
-                <span
-                  className={`absolute top-2 left-2 text-[9px] font-bold px-1.5 py-0.5 rounded-md border uppercase tracking-wider backdrop-blur-xs ${getBadgeColor(
-                    m.type
-                  )}`}
-                >
-                  {m.type}
-                </span>
-
-                {/* Star Button */}
-                <button
-                  onClick={(e) => handleToggleFav(e, m.id)}
-                  className={`absolute top-2 right-2 p-1.5 rounded-full backdrop-blur-md transition-all ${
-                    m.isFavourite
-                      ? 'bg-amber-400 text-amber-950 scale-110 shadow-sm'
-                      : 'bg-black/30 text-white/80 hover:scale-110'
-                  }`}
-                  aria-label="Favorite"
-                >
-                  <Star className="w-3.5 h-3.5 fill-current" />
-                </button>
-              </div>
-
-              {/* Title & Size */}
-              <div className="p-2.5">
-                <div className="text-xs font-semibold text-[var(--color-on-surface)] truncate">
-                  {m.title}
-                </div>
-                <div className="text-[10px] text-[var(--color-on-surface-variant)] mt-0.5 flex items-center justify-between">
-                  <span>{formatSize(m.fileSize)}</span>
-                  <span>{new Date(m.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
-                </div>
-              </div>
-            </div>
-          ))}
+      {/* Empty State matching Image 3 */}
+      {filteredMemories.length === 0 ? (
+        <div className="flex flex-col items-center justify-center text-center py-24 px-4 space-y-4">
+          <div className="flex items-center justify-center text-[#334e45] dark:text-[#a0b8af]">
+            <UploadTrayIcon className="w-16 h-16" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="font-heading text-2xl font-normal text-[#12332a] dark:text-white">
+              Your vault is empty
+            </h3>
+            <p className="text-xs text-[#5b7970] dark:text-[#8fa7a0]">
+              Add your first memory to keep it safe forever.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setNewTitle('');
+              setNewCaption('');
+              setUploadedFile(null);
+              setIsAddModalOpen(true);
+            }}
+            className="px-6 py-2.5 rounded-xl bg-[#082a20] hover:bg-[#0c382b] text-white text-xs font-semibold shadow-xs transition active:scale-[0.98]"
+          >
+            Add Memory
+          </button>
         </div>
       ) : (
-        /* Single-Column List View */
-        <div className="space-y-2">
+        /* Memory Grid matching Frame 126s */
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filteredMemories.map((m) => (
             <div
               key={m.id}
-              onClick={() => setPreviewItem(m)}
-              className="p-3 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-surface-border)] hover:border-teal-500/40 cursor-pointer flex items-center justify-between gap-3 transition-all hover:scale-[1.01]"
+              onClick={() => setActivePreview(m)}
+              className="group aspect-square rounded-2xl bg-[#c5cfc9] dark:bg-white/10 relative overflow-hidden cursor-pointer shadow-xs hover:shadow-md transition flex flex-col justify-between p-3"
             >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-12 h-12 rounded-xl bg-[var(--color-surface-variant)] flex items-center justify-center shrink-0 overflow-hidden">
-                  {m.type === 'image' ? (
-                    <img src={m.fileUrl} alt={m.title} className="w-full h-full object-cover" />
-                  ) : m.type === 'video' ? (
-                    <Video className="w-5 h-5 text-rose-500" />
-                  ) : m.type === 'audio' ? (
-                    <Music className="w-5 h-5 text-amber-500" />
-                  ) : (
-                    <FileText className="w-5 h-5 text-indigo-500" />
-                  )}
+              {/* If image, display cover */}
+              {m.type === 'IMAGE' ? (
+                <img
+                  src={m.fileUrl}
+                  alt={m.title}
+                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                />
+              ) : m.type === 'AUDIO' ? (
+                <div className="absolute inset-0 w-full h-full bg-[#f2f7f5] dark:bg-white/5 flex items-center justify-center text-[#5b7970]">
+                  <MusicNoteIcon className="w-12 h-12 stroke-[1.5]" />
                 </div>
+              ) : null}
 
-                <div className="min-w-0">
-                  <h4 className="text-xs font-semibold text-[var(--color-on-surface)] truncate">
-                    {m.title}
-                  </h4>
-                  <div className="flex items-center gap-2 text-[10px] text-[var(--color-on-surface-variant)] mt-0.5">
-                    <span className={`px-1 rounded text-[8px] font-bold uppercase border ${getBadgeColor(m.type)}`}>
-                      {m.type}
-                    </span>
-                    <span>{formatSize(m.fileSize)}</span>
-                  </div>
-                </div>
+              {/* Top Left Badge */}
+              <div className="relative z-10 self-start px-2.5 py-0.5 rounded-full bg-white/90 text-[#12332a] text-[10px] font-semibold uppercase shadow-xs">
+                {m.type}
               </div>
 
-              <div className="flex items-center gap-1 shrink-0">
+              {/* Centered Trash Button */}
+              <div className="relative z-10 flex items-center justify-center flex-1">
                 <button
-                  onClick={(e) => handleToggleFav(e, m.id)}
-                  className={`p-2 rounded-xl transition-all ${
-                    m.isFavourite ? 'text-amber-500' : 'text-[var(--color-on-surface-variant)] hover:text-amber-500'
-                  }`}
-                >
-                  <Star className={`w-4 h-4 ${m.isFavourite ? 'fill-current' : ''}`} />
-                </button>
-                <button
+                  type="button"
                   onClick={(e) => handleDelete(e, m.id)}
-                  className="p-2 rounded-xl text-[var(--color-on-surface-variant)] hover:text-rose-500 transition-colors"
+                  className="w-8 h-8 rounded-full bg-[#f43f5e] hover:bg-[#e11d48] text-white flex items-center justify-center shadow-md transition transform active:scale-90"
+                  title="Delete memory"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
+              </div>
+
+              {/* Bottom Strip with Filename */}
+              <div className="relative z-10 px-3 py-1.5 rounded-xl bg-black/40 backdrop-blur-md text-white text-[11px] truncate">
+                {m.title || m.fileName}
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Memory Vault FAB - 56px circle */}
-      <button
-        onClick={() => fileInputRef.current?.click()}
-        aria-label="Add Memory"
-        className="fixed bottom-24 right-6 w-14 h-14 rounded-full bg-[var(--color-gold)] hover:bg-[var(--color-gold-light)] text-neutral-900 shadow-xl flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-90 z-30"
-      >
-        <Plus className="w-6 h-6 stroke-[2.5]" />
-      </button>
-
-      {/* Fullscreen Preview Modal */}
-      {previewItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
-          <div className="relative w-full max-w-2xl bg-[var(--color-surface)] border border-[var(--color-surface-border)] rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+      {/* Add Memory Modal matching Image 4 */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md p-4 animate-in fade-in duration-150">
+          <div className="relative w-full max-w-lg bg-white dark:bg-[#0c1e19] border border-[#dce9e3] dark:border-white/10 rounded-[28px] p-6 sm:p-7 shadow-2xl space-y-4">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-4 border-b border-[var(--color-surface-border)]">
-              <div className="min-w-0 pr-2">
-                <h3 className="text-sm font-semibold text-[var(--color-on-surface)] truncate font-heading">
-                  {previewItem.title}
-                </h3>
-                <span className="text-[10px] text-[var(--color-on-surface-variant)]">
-                  {formatSize(previewItem.fileSize)} · {new Date(previewItem.createdAt).toLocaleString()}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <a
-                  href={previewItem.fileUrl}
-                  download={previewItem.fileName}
-                  className="p-2 rounded-xl bg-[var(--color-surface-variant)] text-[var(--color-on-surface)] hover:bg-[var(--color-surface-variant)]/80 transition-colors"
-                  title="Download / Save"
-                >
-                  <Download className="w-4 h-4" />
-                </a>
-                <button
-                  onClick={(e) => handleDelete(e, previewItem.id)}
-                  className="p-2 rounded-xl text-rose-500 hover:bg-rose-500/10 transition-colors"
-                  title="Delete"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setPreviewItem(null)}
-                  className="p-2 rounded-xl text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-variant)] transition-colors"
-                  title="Close"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+            <div className="flex items-center justify-between">
+              <h3 className="font-heading text-xl font-normal text-[#12332a] dark:text-white">
+                New Memory
+              </h3>
+              <button
+                onClick={() => setIsAddModalOpen(false)}
+                className="p-1.5 rounded-full text-gray-400 hover:text-black dark:hover:text-white transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            {/* Viewer Content */}
-            <div className="p-4 flex-1 overflow-auto flex items-center justify-center bg-black/20">
-              {previewItem.type === 'image' ? (
+            <form onSubmit={handleSaveMemory} className="space-y-4">
+              {/* File Preview Card matching Image 4 */}
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="rounded-2xl p-7 bg-[#f8faf9] dark:bg-white/5 border border-[#dce9e3] dark:border-white/10 flex flex-col items-center justify-center text-center cursor-pointer hover:border-[#12332a]/30 transition min-h-[140px] space-y-2"
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  onChange={handleFilePicked}
+                  className="hidden"
+                />
+                {uploadedFile ? (
+                  <div className="flex flex-col items-center space-y-2">
+                    <div className="w-10 h-10 rounded-full bg-white dark:bg-white/10 flex items-center justify-center text-[#12332a] dark:text-white shadow-xs">
+                      {newCategory === 'AUDIO' ? (
+                        <MusicNoteIcon className="w-5 h-5" />
+                      ) : (
+                        <ImageIcon className="w-5 h-5" />
+                      )}
+                    </div>
+                    <span className="text-xs text-[#5b7970] dark:text-[#8fa7a0] font-mono truncate max-w-xs">
+                      {uploadedFile.name}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center space-y-1.5 text-[#5b7970] dark:text-[#8fa7a0]">
+                    <UploadTrayIcon className="w-8 h-8 stroke-[1.8]" />
+                    <span className="text-xs font-medium">
+                      Tap or drop file to upload
+                    </span>
+                    <span className="text-[10px] text-[#8fa7a0]">
+                      Images, videos, audio notes, and PDFs
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Title Input */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-[#8fa7a0] block">
+                  TITLE
+                </label>
+                <input
+                  type="text"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  placeholder="Memory title"
+                  required
+                  className="w-full px-4 py-2.5 rounded-xl border border-[#dce9e3] dark:border-white/10 text-xs bg-white dark:bg-transparent text-[#12332a] dark:text-white focus:outline-none focus:border-[#0d2e26]"
+                />
+              </div>
+
+              {/* Caption Input with 'Generate poetic caption' button matching Image 4 */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-[#8fa7a0] block">
+                    CAPTION (OPTIONAL)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleGenerateCaption}
+                    className="flex items-center gap-1 text-[11px] font-medium text-[#5b7970] hover:text-[#12332a] dark:text-teal-400 dark:hover:text-teal-300 transition"
+                  >
+                    <MindfulStarWithPlusIcon className="w-3.5 h-3.5" />
+                    <span>Generate poetic caption</span>
+                  </button>
+                </div>
+                <textarea
+                  value={newCaption}
+                  onChange={(e) => setNewCaption(e.target.value)}
+                  rows={3}
+                  placeholder="Add a poetic caption..."
+                  className="w-full px-4 py-2.5 rounded-xl border border-[#dce9e3] dark:border-white/10 text-xs bg-white dark:bg-transparent text-[#12332a] dark:text-white focus:outline-none focus:border-[#0d2e26] resize-none font-body leading-relaxed"
+                />
+              </div>
+
+              {/* Action Buttons matching Image 4 */}
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="px-6 py-2.5 rounded-xl bg-white dark:bg-white/10 border border-[#dce9e3] dark:border-white/10 text-[#12332a] dark:text-white text-xs font-semibold hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!uploadedFile}
+                  className="px-6 py-2.5 rounded-xl bg-[#082a20] hover:bg-[#0c382b] text-white text-xs font-semibold shadow-xs disabled:opacity-50 transition"
+                >
+                  Save to Vault
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Preview */}
+      {activePreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in">
+          <div className="relative w-full max-w-xl bg-white dark:bg-[#0c1e19] border border-[#dce9e3] dark:border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold truncate text-[#12332a] dark:text-white">
+                {activePreview.title}
+              </h4>
+              <button
+                onClick={() => setActivePreview(null)}
+                className="p-1 rounded-full text-gray-400 hover:text-black dark:hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-center p-4 bg-gray-50 dark:bg-black/30 rounded-2xl">
+              {activePreview.type === 'IMAGE' ? (
                 <img
-                  src={previewItem.fileUrl}
-                  alt={previewItem.title}
-                  className="max-h-[65vh] max-w-full object-contain rounded-xl shadow-lg"
+                  src={activePreview.fileUrl}
+                  alt={activePreview.title}
+                  className="max-h-[60vh] object-contain rounded-xl"
                 />
-              ) : previewItem.type === 'video' ? (
-                <video
-                  src={previewItem.fileUrl}
-                  controls
-                  autoPlay
-                  className="max-h-[65vh] w-full rounded-xl"
-                />
-              ) : previewItem.type === 'audio' ? (
-                <div className="w-full max-w-md p-6 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-surface-border)] text-center space-y-4">
-                  <div className="w-16 h-16 mx-auto rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center">
-                    <Music className="w-8 h-8" />
-                  </div>
-                  <div className="font-heading font-semibold text-base text-[var(--color-on-surface)]">
-                    {previewItem.title}
-                  </div>
-                  <audio src={previewItem.fileUrl} controls className="w-full" />
+              ) : activePreview.type === 'VIDEO' ? (
+                <video src={activePreview.fileUrl} controls className="max-h-[60vh] rounded-xl" />
+              ) : activePreview.type === 'AUDIO' ? (
+                <div className="w-full space-y-3">
+                  <audio src={activePreview.fileUrl} controls className="w-full" />
+                  {activePreview.caption && (
+                    <p className="text-xs text-[#5b7970] italic text-center font-quote">
+                      "{activePreview.caption}"
+                    </p>
+                  )}
                 </div>
               ) : (
-                <div className="p-8 text-center space-y-4 max-w-md bg-[var(--color-surface)] rounded-2xl border border-[var(--color-surface-border)]">
-                  <FileText className="w-12 h-12 text-indigo-500 mx-auto" />
-                  <div className="font-heading font-semibold text-base text-[var(--color-on-surface)]">
-                    {previewItem.fileName}
-                  </div>
-                  <p className="text-xs text-[var(--color-on-surface-variant)]">
-                    Secure on-device document. You can open or download it to view in your device reader.
-                  </p>
-                  <a
-                    href={previewItem.fileUrl}
-                    download={previewItem.fileName}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--color-primary)] text-white text-xs font-semibold shadow-md hover:scale-105 active:scale-95 transition-all"
-                  >
-                    <Download className="w-4 h-4" /> Download to Device
-                  </a>
-                </div>
+                <a
+                  href={activePreview.fileUrl}
+                  download={activePreview.fileName}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#082a20] text-white text-xs"
+                >
+                  <Download className="w-4 h-4" />
+                  Download
+                </a>
               )}
             </div>
           </div>

@@ -115,7 +115,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
     >
       {currentSlide < 3 ? (
         /* Dark Forest Green Background matching Images 1, 2, 3 */
-        <div className="relative w-full h-full min-h-screen bg-[#071914] text-[#f0f7f4] flex flex-col items-center justify-center p-6">
+        <div className="relative w-full h-full min-h-screen bg-[#071914] text-[#f0f7f4] flex flex-col items-center justify-center p-6 pt-[max(env(safe-area-inset-top,0px),2rem)] pb-[max(env(safe-area-inset-bottom,0px),2rem)]">
           <div className="flex flex-col items-center text-center max-w-sm w-full mx-auto space-y-8 animate-in fade-in duration-300">
             {/* Subtle Frosted Circular Badge matching screenshot */}
             <div className="w-20 h-20 rounded-full bg-[#132c25] flex items-center justify-center shadow-xs">
@@ -190,7 +190,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
         </div>
       ) : (
         /* Pale Mint Canvas with Centered Profile Card matching Image 4 */
-        <div className="relative w-full h-full min-h-screen bg-[#ebf4f0] flex items-center justify-center p-4">
+        <div className="relative w-full h-full min-h-screen bg-[#ebf4f0] flex items-center justify-center p-4 pt-[max(env(safe-area-inset-top,0px),2rem)] pb-[max(env(safe-area-inset-bottom,0px),2rem)]">
           <div className="w-full max-w-sm bg-[#fbfdfc] border border-[#dce9e3] rounded-[32px] p-7 sm:p-8 shadow-xs space-y-6 animate-in fade-in duration-200">
             {/* Top Heart Badge matching Image 4 */}
             <div className="flex flex-col items-center text-center space-y-2">

@@ -261,21 +261,32 @@ export const JournalScreen: React.FC<JournalScreenProps> = ({
               />
             </div>
 
-            {/* Writing Canvas & Floating Inspire Button matching Image 2 */}
+            {/* Writing Canvas & Inspire Button matching Image 2 */}
             <div className="relative pt-2">
+              <div className="flex sm:hidden justify-end pb-2">
+                <button
+                  type="button"
+                  onClick={handleInspire}
+                  className="px-3.5 py-1.5 rounded-xl bg-white/80 dark:bg-white/10 border border-[#dce9e3] dark:border-white/15 text-[#12332a] dark:text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 touch-manipulation active:scale-95"
+                >
+                  <MindfulStarWithPlusIcon className="w-3.5 h-3.5 text-[#12332a] dark:text-teal-300" />
+                  <span>Inspire Me</span>
+                </button>
+              </div>
+
               <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                rows={14}
+                rows={12}
                 placeholder="What's on your mind today? Write freely..."
-                className="w-full bg-transparent text-sm sm:text-base leading-relaxed text-[#12332a] dark:text-white placeholder-[#8fa7a0]/40 focus:outline-none resize-none font-body"
+                className="w-full bg-transparent text-sm sm:text-base leading-relaxed text-[#12332a] dark:text-white placeholder-[#8fa7a0]/40 focus:outline-none resize-none font-body sm:pr-32"
               />
 
-              {/* Floating Inspire Me button on right matching Image 2 */}
+              {/* Floating Inspire Me button on desktop */}
               <button
                 type="button"
                 onClick={handleInspire}
-                className="absolute right-0 top-6 px-4 py-2 rounded-2xl bg-white dark:bg-white/10 border border-white/70 dark:border-white/15 text-[#12332a] dark:text-white text-xs font-semibold shadow-xs flex items-center gap-2 hover:bg-[#f7faf9] transition"
+                className="hidden sm:flex absolute right-0 top-2 px-4 py-2 rounded-2xl bg-white dark:bg-white/10 border border-[#dce9e3] dark:border-white/15 text-[#12332a] dark:text-white text-xs font-semibold shadow-xs items-center gap-2 hover:bg-[#f7faf9] transition touch-manipulation active:scale-95"
               >
                 <MindfulStarWithPlusIcon className="w-4 h-4 text-[#12332a] dark:text-teal-300" />
                 <span>Inspire Me</span>

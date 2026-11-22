@@ -144,23 +144,29 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({ reminders, onR
           </h3>
           <div className="flex items-center gap-1 text-[#8fa7a0]">
             <button
-              onClick={() => setIsModalOpen(true)}
-              className="p-1.5 hover:text-black dark:hover:text-white transition"
+              onClick={() => {
+                hapticLight();
+                setIsModalOpen(true);
+              }}
+              className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 hover:text-black dark:hover:text-white active:scale-90 transition touch-manipulation cursor-pointer"
               title="Add reminder"
+              aria-label="Add reminder"
             >
               <Plus className="w-4 h-4 stroke-[2]" />
             </button>
             <button
               onClick={prevMonth}
-              className="p-1.5 hover:text-black dark:hover:text-white transition"
+              className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 hover:text-black dark:hover:text-white active:scale-90 transition touch-manipulation cursor-pointer"
               title="Previous month"
+              aria-label="Previous month"
             >
               <ChevronLeft className="w-4 h-4 stroke-[2]" />
             </button>
             <button
               onClick={nextMonth}
-              className="p-1.5 hover:text-black dark:hover:text-white transition"
+              className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 hover:text-black dark:hover:text-white active:scale-90 transition touch-manipulation cursor-pointer"
               title="Next month"
+              aria-label="Next month"
             >
               <ChevronRight className="w-4 h-4 stroke-[2]" />
             </button>

@@ -10,6 +10,7 @@ import {
   HelpIcon as HelpCircle,
   ShieldIcon as Shield,
   SyncIcon as RotateCw,
+  CloseIcon,
 } from './icons';
 import type { UserProfile } from '../types';
 import { hapticLight } from '../lib/haptics';
@@ -69,13 +70,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   const content = (
-    <div className="h-full flex flex-col justify-between py-6 px-4 select-none">
-      {/* Top Header Logo */}
+    <div className="h-full flex flex-col justify-between py-6 px-4 select-none overflow-y-auto">
+      {/* Top Header Logo & Close button */}
       <div className="space-y-6">
-        <div className="px-3 pt-1">
-          <h1 className="font-heading text-2xl font-normal tracking-wide text-[#12332a] dark:text-white">
-            Sanctuary
-          </h1>
+        <div className="px-2 pt-1 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-teal-600/10 border border-teal-500/20 flex items-center justify-center text-teal-700 dark:text-teal-300 font-heading text-sm font-bold">
+              S
+            </div>
+            <h1 className="font-heading text-2xl font-normal tracking-wide text-[#12332a] dark:text-white">
+              Sanctuary
+            </h1>
+          </div>
+
+          {onCloseMobile && (
+            <button
+              type="button"
+              onClick={() => {
+                hapticLight();
+                onCloseMobile();
+              }}
+              className="md:hidden w-10 h-10 -mr-2 rounded-xl flex items-center justify-center text-[#5b7970] dark:text-[#8fa7a0] hover:text-[#12332a] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 active:scale-90 transition touch-manipulation cursor-pointer"
+              aria-label="Close menu"
+            >
+              <CloseIcon className="w-5 h-5 stroke-[2]" />
+            </button>
+          )}
         </div>
 
         {/* Navigation list */}
@@ -90,13 +110,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onNavigate(item.id);
                   if (onCloseMobile) onCloseMobile();
                 }}
-                className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-normal transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#12332a] dark:focus-visible:ring-teal-400 ${
+                className={`w-full min-h-[44px] flex items-center justify-between px-4 py-3 rounded-2xl text-xs sm:text-sm font-normal transition-all active:scale-[0.98] touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#12332a] dark:focus-visible:ring-teal-400 ${
                   isActive
                     ? 'bg-white dark:bg-white/10 text-[#12332a] dark:text-white font-medium shadow-xs'
                     : 'text-[#608075] dark:text-[#8fa7a0] hover:text-[#12332a] dark:hover:text-white hover:bg-white/40 dark:hover:bg-white/5'
                 }`}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3.5">
                   <span className={isActive ? 'text-[#12332a] dark:text-white' : 'text-[#8fa7a0]'}>
                     {item.icon}
                   </span>
@@ -112,10 +132,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Bottom Profile Pill */}
-      <div>
+      <div className="pt-4">
         <button
-          onClick={onOpenProfile}
-          className="w-full flex items-center gap-3 p-3 rounded-2xl bg-[#fbfdfc]/90 dark:bg-white/5 border border-[#dce9e3] dark:border-white/10 shadow-xs hover:border-[#12332a]/30 transition text-left group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#12332a] dark:focus-visible:ring-teal-400"
+          onClick={() => {
+            hapticLight();
+            onOpenProfile();
+            if (onCloseMobile) onCloseMobile();
+          }}
+          className="w-full min-h-[48px] flex items-center gap-3 p-3 rounded-2xl bg-[#fbfdfc]/90 dark:bg-white/5 border border-[#dce9e3] dark:border-white/10 shadow-xs hover:border-[#12332a]/30 transition text-left group active:scale-[0.98] touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#12332a] dark:focus-visible:ring-teal-400"
         >
           <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-white/10 text-[#12332a] dark:text-white flex items-center justify-center font-semibold text-xs overflow-hidden flex-shrink-0">
             {profile.avatar ? (
@@ -150,8 +174,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div
             className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
             onClick={onCloseMobile}
+            aria-hidden="true"
           />
-          <div className="relative w-64 max-w-[80vw] h-full bg-[#ebf4f0] dark:bg-[#06120f] shadow-2xl animate-in slide-in-from-left duration-200">
+          <div className="relative w-72 max-w-[85vw] h-full bg-[#ebf4f0] dark:bg-[#06120f] shadow-2xl animate-in slide-in-from-left duration-250 flex flex-col pt-[max(env(safe-area-inset-top,0px),1rem)] pb-[max(env(safe-area-inset-bottom,0px),1rem)]">
             {content}
           </div>
         </div>

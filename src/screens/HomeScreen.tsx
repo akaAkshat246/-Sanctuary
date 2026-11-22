@@ -123,10 +123,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ profile, onOpenProfile, 
           </p>
         </div>
 
-        {/* Circular Avatar Button on Top Right */}
+        {/* Circular Avatar Button on Top Right (desktop/tablet) */}
         <button
           onClick={onOpenProfile}
-          className="w-10 h-10 rounded-full border border-[#12332a]/30 dark:border-white/30 flex items-center justify-center text-xs font-semibold text-[#12332a] dark:text-white hover:bg-white/40 dark:hover:bg-white/10 transition shadow-xs"
+          className="hidden sm:flex w-10 h-10 rounded-full border border-[#12332a]/30 dark:border-white/30 items-center justify-center text-xs font-semibold text-[#12332a] dark:text-white hover:bg-white/40 dark:hover:bg-white/10 transition shadow-xs touch-manipulation active:scale-95 flex-shrink-0"
           aria-label="Profile"
         >
           {profile.avatar ? (
